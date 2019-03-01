@@ -2,7 +2,6 @@
  * vlc_sout.h : stream output module
  *****************************************************************************
  * Copyright (C) 2002-2008 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Laurent Aimar <fenrir@via.ecp.fr>
@@ -53,6 +52,7 @@ struct sout_instance_t
 
     /** count of output that can't control the space */
     int                 i_out_pace_nocontrol;
+    bool                b_wants_substreams;
 
     vlc_mutex_t         lock;
     sout_stream_t       *p_stream;
@@ -187,6 +187,8 @@ static inline int sout_MuxControl( sout_mux_t *p_mux, int i_query, ... )
 
 enum sout_stream_query_e {
     SOUT_STREAM_EMPTY,    /* arg1=bool *,       res=can fail (assume true) */
+    SOUT_STREAM_WANTS_SUBSTREAMS,  /* arg1=bool *, res=can fail (assume false) */
+    SOUT_STREAM_ID_SPU_HIGHLIGHT,  /* arg1=void *, arg2=const vlc_spu_highlight_t *, res=can fail */
 };
 
 struct sout_stream_t

@@ -2,7 +2,6 @@
  * encoder.c: video and audio encoder using the libavcodec library
  *****************************************************************************
  * Copyright (C) 1999-2004 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Gildas Bazin <gbazin@videolan.org>
@@ -50,9 +49,9 @@
 
 #include <libavutil/channel_layout.h>
 
-#define HURRY_UP_GUARD1 (450000)
-#define HURRY_UP_GUARD2 (300000)
-#define HURRY_UP_GUARD3 (100000)
+#define HURRY_UP_GUARD1 VLC_TICK_FROM_MS(450)
+#define HURRY_UP_GUARD2 VLC_TICK_FROM_MS(300)
+#define HURRY_UP_GUARD3 VLC_TICK_FROM_MS(100)
 
 #define MAX_FRAME_DELAY (FF_MAX_B_FRAMES + 2)
 
@@ -344,12 +343,14 @@ int InitVideoEnc( vlc_object_t *p_this )
         if( !p_codec )
         {
             msg_Err( p_this, "Encoder `%s' not found", psz_encoder );
+            free( psz_encoder );
             return VLC_EGENERIC;
         }
         else if( p_codec->id != i_codec_id )
         {
             msg_Err( p_this, "Encoder `%s' can't handle %4.4s",
                     psz_encoder, (char*)&p_enc->fmt_out.i_codec );
+            free( psz_encoder );
             return VLC_EGENERIC;
         }
     }
@@ -499,6 +500,8 @@ int InitVideoEnc( vlc_object_t *p_this )
 
         p_context->codec_type = AVMEDIA_TYPE_VIDEO;
 
+        p_context->coded_width = p_enc->fmt_in.video.i_width;
+        p_context->coded_height = p_enc->fmt_in.video.i_height;
         p_context->width = p_enc->fmt_in.video.i_visible_width;
         p_context->height = p_enc->fmt_in.video.i_visible_height;
 
@@ -1090,8 +1093,8 @@ static block_t *vlc_av_packet_Wrap(AVPacket *packet, vlc_tick_t i_length, AVCode
     b->packet = *packet;
 
     p_block->i_length = i_length;
-    p_block->i_pts = packet->pts;
-    p_block->i_dts = packet->dts;
+    p_block->i_pts = FROM_AV_TS(packet->pts);
+    p_block->i_dts = FROM_AV_TS(packet->dts);
     if( unlikely( packet->flags & AV_PKT_FLAG_CORRUPT ) )
         p_block->i_flags |= BLOCK_FLAG_CORRUPTED;
     if( packet->flags & AV_PKT_FLAG_KEY )
@@ -1106,7 +1109,7 @@ static void check_hurry_up( encoder_sys_t *p_sys, AVFrame *frame, encoder_t *p_e
 {
     vlc_tick_t current_date = vlc_tick_now();
 
-    if ( current_date + HURRY_UP_GUARD3 > frame->pts )
+    if ( current_date + HURRY_UP_GUARD3 > FROM_AV_TS(frame->pts) )
     {
         p_sys->p_context->mb_decision = FF_MB_DECISION_SIMPLE;
         p_sys->p_context->trellis = 0;
@@ -1116,7 +1119,7 @@ static void check_hurry_up( encoder_sys_t *p_sys, AVFrame *frame, encoder_t *p_e
     {
         p_sys->p_context->mb_decision = p_sys->i_hq;
 
-        if ( current_date + HURRY_UP_GUARD2 > frame->pts )
+        if ( current_date + HURRY_UP_GUARD2 > FROM_AV_TS(frame->pts) )
         {
             p_sys->p_context->trellis = 0;
             msg_Dbg( p_enc, "hurry up mode 2" );
@@ -1127,7 +1130,7 @@ static void check_hurry_up( encoder_sys_t *p_sys, AVFrame *frame, encoder_t *p_e
         }
     }
 
-    if ( current_date + HURRY_UP_GUARD1 > frame->pts )
+    if ( current_date + HURRY_UP_GUARD1 > FROM_AV_TS(frame->pts) )
     {
         frame->pict_type = AV_PICTURE_TYPE_P;
         /* msg_Dbg( p_enc, "hurry up mode 1 %lld", current_date + HURRY_UP_GUARD1 - frame.pts ); */
@@ -1209,13 +1212,13 @@ static block_t *EncodeVideo( encoder_t *p_enc, picture_t *p_pict )
 
         if ( ( frame->pts != AV_NOPTS_VALUE ) && ( frame->pts != VLC_TICK_INVALID ) )
         {
-            if ( p_sys->i_last_pts == frame->pts )
+            if ( p_sys->i_last_pts == FROM_AV_TS(frame->pts) )
             {
                 msg_Warn( p_enc, "almost fed libavcodec with two frames with "
                           "the same PTS (%"PRId64 ")", frame->pts );
                 return NULL;
             }
-            else if ( p_sys->i_last_pts > frame->pts )
+            else if ( p_sys->i_last_pts > FROM_AV_TS(frame->pts) )
             {
                 msg_Warn( p_enc, "almost fed libavcodec with a frame in the "
                          "past (current: %"PRId64 ", last: %"PRId64")",
@@ -1223,7 +1226,7 @@ static block_t *EncodeVideo( encoder_t *p_enc, picture_t *p_pict )
                 return NULL;
             }
             else
-                p_sys->i_last_pts = frame->pts;
+                p_sys->i_last_pts = FROM_AV_TS(frame->pts);
         }
 
         frame->quality = p_sys->i_quality;

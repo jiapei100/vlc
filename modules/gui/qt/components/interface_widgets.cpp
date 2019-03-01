@@ -2,7 +2,6 @@
  * interface_widgets.cpp : Custom widgets for the main interface
  ****************************************************************************
  * Copyright (C) 2006-2010 the VideoLAN team
- * $Id$
  *
  * Authors: Clément Stenac <zorglub@videolan.org>
  *          Jean-Baptiste Kempf <jb@videolan.org>
@@ -70,7 +69,6 @@
 #include <math.h>
 #include <assert.h>
 
-#include <vlc_vout.h>
 #include <vlc_vout_window.h>
 
 /**********************************************************************
@@ -118,13 +116,9 @@ void VideoWidget::sync( void )
 /**
  * Request the video to avoid the conflicts
  **/
-bool VideoWidget::request( struct vout_window_t *p_wnd )
+void VideoWidget::request( struct vout_window_t *p_wnd )
 {
-    if( stable )
-    {
-        msg_Dbg( p_intf, "embedded video already in use" );
-        return false;
-    }
+    assert( stable == NULL );
     assert( !p_window );
 
     /* The owner of the video window needs a stable handle (WinId). Reparenting
@@ -191,7 +185,6 @@ bool VideoWidget::request( struct vout_window_t *p_wnd )
         default:
             vlc_assert_unreachable();
     }
-    return true;
 }
 
 QSize VideoWidget::physicalSize() const
@@ -809,9 +802,8 @@ void SpeedControlWidget::updateRate( int sliderValue )
     lastValue = sliderValue;
 
     double speed = pow( 2, (double)sliderValue / 17 );
-    int rate = INPUT_RATE_DEFAULT / speed;
 
-    THEMIM->getIM()->setRate(rate);
+    THEMIM->getIM()->setRate(speed);
     //spinBox->setValue( var_InheritFloat( THEPL, "rate" ) );
 }
 
@@ -822,7 +814,7 @@ void SpeedControlWidget::updateSpinBoxRate( double r )
 
 void SpeedControlWidget::resetRate()
 {
-    THEMIM->getIM()->setRate( INPUT_RATE_DEFAULT );
+    THEMIM->getIM()->setRate( 1.0f );
 }
 
 CoverArtLabel::CoverArtLabel( QWidget *parent, intf_thread_t *_p_i )
@@ -957,8 +949,8 @@ TimeLabel::TimeLabel( intf_thread_t *_p_intf, TimeLabel::Display _displayType  )
     CONNECT( THEMIM->getIM(), seekRequested( float ),
              this, setDisplayPosition( float ) );
 
-    CONNECT( THEMIM->getIM(), positionUpdated( float, int64_t, int ),
-              this, setDisplayPosition( float, int64_t, int ) );
+    CONNECT( THEMIM->getIM(), positionUpdated( float, vlc_tick_t, int ),
+              this, setDisplayPosition( float, vlc_tick_t, int ) );
 
     connect( this, SIGNAL( broadcastRemainingTime( bool ) ),
          THEMIM->getIM(), SIGNAL( remainingTimeChanged( bool ) ) );
@@ -983,7 +975,7 @@ void TimeLabel::refresh()
     setDisplayPosition( cachedPos, cachedTime, cachedLength );
 }
 
-void TimeLabel::setDisplayPosition( float pos, int64_t t, int length )
+void TimeLabel::setDisplayPosition( float pos, vlc_tick_t t, int length )
 {
     cachedPos = pos;
     if( pos == -1.f )
@@ -1052,7 +1044,7 @@ void TimeLabel::setDisplayPosition( float pos, int64_t t, int length )
 
 void TimeLabel::setDisplayPosition( float pos )
 {
-    int64_t time = pos * cachedLength * 1000000;
+    vlc_tick_t time = vlc_tick_from_sec(pos * cachedLength);
     setDisplayPosition( pos, time, cachedLength );
 }
 

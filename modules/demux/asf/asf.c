@@ -151,7 +151,7 @@ static int Open( vlc_object_t * p_this )
 {
     demux_t     *p_demux = (demux_t *)p_this;
     demux_sys_t *p_sys;
-    guid_t      guid;
+    vlc_guid_t      guid;
     const uint8_t     *p_peek;
 
     /* A little test to see if it could be a asf stream */
@@ -213,8 +213,8 @@ static int Demux( demux_t *p_demux )
     }
 
     while( !p_sys->b_eos && ( p_sys->i_sendtime - p_sys->i_time - CHUNK < 0 ||
-                            ( p_sys->i_sendtime - p_sys->i_time - CHUNK ) /
-                              UINT64_C( 1000 ) < p_sys->p_fp->i_preroll ) )
+                            ( p_sys->i_sendtime - p_sys->i_time - CHUNK ) <
+                                                     p_sys->p_fp->i_preroll ) )
     {
         /* Read and demux a packet */
         if( DemuxASFPacket( &p_sys->packet_sys,
@@ -226,7 +226,7 @@ static int Demux( demux_t *p_demux )
             const uint8_t *p_peek;
             if( vlc_stream_Peek( p_demux->s, &p_peek, 16 ) == 16 )
             {
-                guid_t guid;
+                vlc_guid_t guid;
 
                 ASF_GetGUID( &guid, p_peek );
                 p_sys->b_eof = !guidcmp( &guid, &asf_object_header_guid );
@@ -242,8 +242,8 @@ static int Demux( demux_t *p_demux )
     }
 
     if( p_sys->b_eos || ( p_sys->i_sendtime - p_sys->i_time - CHUNK >= 0 &&
-                        ( p_sys->i_sendtime - p_sys->i_time - CHUNK ) /
-                          UINT64_C( 1000 ) >= p_sys->p_fp->i_preroll ) )
+                        ( p_sys->i_sendtime - p_sys->i_time - CHUNK ) >=
+                                                     p_sys->p_fp->i_preroll ) )
     {
         bool b_data = Block_Dequeue( p_demux, p_sys->i_time + CHUNK );
 
@@ -358,7 +358,7 @@ static int SeekIndex( demux_t *p_demux, vlc_tick_t i_date, float f_pos )
     if( i_date < 0 )
         i_date = p_sys->i_length * f_pos;
 
-    p_sys->i_preroll_start = i_date - (int64_t) p_sys->p_fp->i_preroll;
+    p_sys->i_preroll_start = i_date - p_sys->p_fp->i_preroll;
     if ( p_sys->i_preroll_start < 0 ) p_sys->i_preroll_start = 0;
 
     p_index = ASF_FindObject( p_sys->p_root, &asf_object_simple_index_guid, 0 );
@@ -413,21 +413,19 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
     vlc_meta_t  *p_meta;
-    int64_t     i64, *pi64;
+    vlc_tick_t  i64;
     int         i;
     double      f, *pf;
 
     switch( i_query )
     {
     case DEMUX_GET_LENGTH:
-        pi64 = va_arg( args, int64_t * );
-        *pi64 = p_sys->i_length;
+        *va_arg( args, vlc_tick_t * ) = p_sys->i_length;
         return VLC_SUCCESS;
 
     case DEMUX_GET_TIME:
-        pi64 = va_arg( args, int64_t * );
         if( p_sys->i_time == VLC_TICK_INVALID ) return VLC_EGENERIC;
-        *pi64 = p_sys->i_time;
+        *va_arg( args, vlc_tick_t * ) = p_sys->i_time;
         return VLC_SUCCESS;
 
     case DEMUX_SET_TIME:
@@ -437,11 +435,11 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         SeekPrepare( p_demux );
 
-        if( p_sys->b_index && p_sys->i_length > 0 )
+        if( p_sys->b_index && p_sys->i_length != 0 )
         {
             va_list acpy;
             va_copy( acpy, args );
-            i64 = va_arg( acpy, int64_t );
+            i64 = va_arg( acpy, vlc_tick_t );
             va_end( acpy );
 
             if( !SeekIndex( p_demux, i64, -1 ) )
@@ -495,7 +493,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
     case DEMUX_GET_POSITION:
         if( p_sys->i_time == VLC_TICK_INVALID ) return VLC_EGENERIC;
-        if( p_sys->i_length > 0 )
+        if( p_sys->i_length != 0 )
         {
             pf = va_arg( args, double * );
             *pf = p_sys->i_time / (double)p_sys->i_length;
@@ -515,7 +513,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         SeekPrepare( p_demux );
 
-        if( p_sys->b_index && p_sys->i_length > 0 )
+        if( p_sys->b_index && p_sys->i_length != 0 )
         {
             va_list acpy;
             va_copy( acpy, args );
@@ -1050,12 +1048,12 @@ static int DemuxInit( demux_t *p_demux )
         else if( guidcmp( &p_sp->i_stream_type, &asf_object_stream_type_binary ) &&
             p_sp->i_type_specific_data_length >= 64 )
         {
-            guid_t i_major_media_type;
+            vlc_guid_t i_major_media_type;
             ASF_GetGUID( &i_major_media_type, p_sp->p_type_specific_data );
             msg_Dbg( p_demux, "stream(ID:%d) major type " GUID_FMT, p_sp->i_stream_number,
                      GUID_PRINT(i_major_media_type) );
 
-            guid_t i_media_subtype;
+            vlc_guid_t i_media_subtype;
             ASF_GetGUID( &i_media_subtype, &p_sp->p_type_specific_data[16] );
             msg_Dbg( p_demux, "stream(ID:%d) subtype " GUID_FMT, p_sp->i_stream_number,
                      GUID_PRINT(i_media_subtype) );
@@ -1064,7 +1062,7 @@ static int DemuxInit( demux_t *p_demux )
             //uint32_t i_temporal_compression = GetDWBE( &p_sp->p_type_specific_data[36] );
             //uint32_t i_sample_size = GetDWBE( &p_sp->p_type_specific_data[40] );
 
-            guid_t i_format_type;
+            vlc_guid_t i_format_type;
             ASF_GetGUID( &i_format_type, &p_sp->p_type_specific_data[44] );
             msg_Dbg( p_demux, "stream(ID:%d) format type " GUID_FMT, p_sp->i_stream_number,
                      GUID_PRINT(i_format_type) );
@@ -1237,12 +1235,12 @@ static int DemuxInit( demux_t *p_demux )
         /* calculate the time duration in micro-s */
         p_sys->i_length = VLC_TICK_FROM_MSFTIME(p_sys->p_fp->i_play_duration) *
                    (vlc_tick_t)i_count /
-                   (vlc_tick_t)p_sys->p_fp->i_data_packets_count - p_sys->p_fp->i_preroll * 1000;
-        if( p_sys->i_length < 0 )
+                   (vlc_tick_t)p_sys->p_fp->i_data_packets_count;
+        if( p_sys->i_length <= p_sys->p_fp->i_preroll )
             p_sys->i_length = 0;
-
-        if( p_sys->i_length > 0 )
+        else
         {
+            p_sys->i_length  -= p_sys->p_fp->i_preroll;
             p_sys->i_bitrate = 8 * i_size * CLOCK_FREQ / p_sys->i_length;
         }
     }

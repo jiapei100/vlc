@@ -2,7 +2,6 @@
  * aout_internal.h : internal defines for audio output
  *****************************************************************************
  * Copyright (C) 2002 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *
@@ -37,13 +36,6 @@ enum {
     AOUT_RESAMPLING_DOWN
 };
 
-struct aout_request_vout
-{
-    struct vout_thread_t  *(*pf_request_vout)( void *, struct vout_thread_t *,
-                                               const video_format_t *, bool );
-    void *p_private;
-};
-
 typedef struct aout_volume aout_volume_t;
 typedef struct aout_dev aout_dev_t;
 
@@ -70,7 +62,6 @@ typedef struct
 
     struct
     {
-        vlc_tick_t end; /**< Last seen PTS */
         float rate; /**< Play-out speed rate */
         vlc_tick_t resamp_start_drift; /**< Resampler drift absolute value */
         int resamp_type; /**< Resampler mode (FIXME: redundant / resampling) */
@@ -82,7 +73,6 @@ typedef struct
     audio_sample_format_t input_format;
     audio_sample_format_t mixer_format;
 
-    aout_request_vout_t request_vout;
     aout_filters_cfg_t filters_cfg;
 
     atomic_uint buffers_lost;
@@ -130,8 +120,6 @@ void aout_FormatsPrint(vlc_object_t *, const char *,
                        const audio_sample_format_t *);
 #define aout_FormatsPrint(o, t, a, b) \
         aout_FormatsPrint(VLC_OBJECT(o), t, a, b)
-bool aout_ChangeFilterString( vlc_object_t *manager, vlc_object_t *aout,
-                              const char *var, const char *name, bool b_add );
 
 /* From dec.c */
 #define AOUT_DEC_SUCCESS 0
@@ -139,7 +127,7 @@ bool aout_ChangeFilterString( vlc_object_t *manager, vlc_object_t *aout,
 #define AOUT_DEC_FAILED VLC_EGENERIC
 
 int aout_DecNew(audio_output_t *, const audio_sample_format_t *,
-                const audio_replay_gain_t *, const aout_request_vout_t *);
+                const audio_replay_gain_t *);
 void aout_DecDelete(audio_output_t *);
 int aout_DecPlay(audio_output_t *aout, block_t *block);
 void aout_DecGetResetStats(audio_output_t *, unsigned *, unsigned *);

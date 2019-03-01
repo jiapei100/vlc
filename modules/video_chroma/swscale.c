@@ -2,7 +2,6 @@
  * swscale.c: scaling and chroma conversion using libswscale
  *****************************************************************************
  * Copyright (C) 1999-2008 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Gildas Bazin <gbazin@videolan.org>
@@ -61,7 +60,7 @@ static void CloseScaler( vlc_object_t * );
 static const int pi_mode_values[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 const char *const ppsz_mode_descriptions[] =
 { N_("Fast bilinear"), N_("Bilinear"), N_("Bicubic (good quality)"),
-  N_("Experimental"), N_("Nearest neighbour (bad quality)"),
+  N_("Experimental"), N_("Nearest neighbor (bad quality)"),
   N_("Area"), N_("Luma bicubic / chroma bilinear"), N_("Gauss"),
   N_("SincR"), N_("Lanczos"), N_("Bicubic spline") };
 
@@ -372,7 +371,9 @@ static int Init( filter_t *p_filter )
     ScalerConfiguration cfg;
     if( GetParameters( &cfg, p_fmti, p_fmto, p_sys->i_sws_flags ) )
     {
-        msg_Err( p_filter, "format not supported" );
+        msg_Err( p_filter, "format not supported '%4.4s' %ux%u -> '%4.4s' %ux%u",
+                 (const char *)&p_fmti->i_chroma, p_fmti->i_visible_width, p_fmti->i_visible_height,
+                 (const char *)&p_fmto->i_chroma, p_fmto->i_visible_width, p_fmto->i_visible_height );
         return VLC_EGENERIC;
     }
     if( p_fmti->i_visible_width == 0 || p_fmti->i_visible_height == 0 ||

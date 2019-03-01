@@ -4,7 +4,10 @@ QTQC2_VERSION := 5.11.0
 QTQC2_URL := http://download.qt.io/official_releases/qt/5.11/$(QTQC2_VERSION)/submodules/qtquickcontrols2-everywhere-src-$(QTQC2_VERSION).tar.xz
 
 ifdef HAVE_WIN32
+ifeq ($(findstring $(ARCH), arm aarch64),)
+# There is no opengl available on windows on these architectures.
 PKGS += qtquickcontrols2
+endif
 endif
 
 ifeq ($(call need_pkg,"Qt5QuickControls2"),)
@@ -24,20 +27,8 @@ qtquickcontrols2: qtquickcontrols2-$(QTQC2_VERSION).tar.xz .sum-qtquickcontrols2
 	mv qtquickcontrols2-everywhere-src-$(QTQC2_VERSION) qtquickcontrols2-$(QTQC2_VERSION)
 	$(MOVE)
 
-
-ifdef HAVE_CROSS_COMPILE
-QMAKE=$(PREFIX)/bin/qmake
-else
-QMAKE=../qt/bin/qmake
-endif
-
-
 .qtquickcontrols2: qtquickcontrols2
-ifdef HAVE_CROSS_COMPILE
 	cd $< && $(PREFIX)/bin/qmake
-else
-	cd $< && ../qt/bin/qmake
-endif
 	# Make && Install libraries
 	cd $< && $(MAKE)
 	cd $< && $(MAKE) -C src sub-quickcontrols2-install_subtargets sub-imports-install_subtargets

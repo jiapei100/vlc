@@ -2,7 +2,6 @@
  * vlc_fourcc.h: Definition of various FOURCC and helpers
  *****************************************************************************
  * Copyright (C) 2009 Laurent Aimar
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir _AT_ videolan _DOT_ com>
  *
@@ -361,6 +360,12 @@
 
 /* 8 bits grey */
 #define VLC_CODEC_GREY            VLC_FOURCC('G','R','E','Y')
+/* 10 bits grey */
+#define VLC_CODEC_GREY_10L        VLC_FOURCC('G','0','F','L')
+#define VLC_CODEC_GREY_10B        VLC_FOURCC('G','0','F','B')
+/* 12 bits grey */
+#define VLC_CODEC_GREY_12L        VLC_FOURCC('G','2','F','L')
+#define VLC_CODEC_GREY_12B        VLC_FOURCC('G','2','F','B')
 /* 16 bits grey */
 #define VLC_CODEC_GREY_16L        VLC_FOURCC('G','R','F','L')
 #define VLC_CODEC_GREY_16B        VLC_FOURCC('G','R','F','B')
@@ -684,6 +689,15 @@ VLC_API const vlc_fourcc_t * vlc_fourcc_GetYUVFallback( vlc_fourcc_t );
  * It will always return a non NULL pointer that must not be freed.
  */
 VLC_API const vlc_fourcc_t * vlc_fourcc_GetRGBFallback( vlc_fourcc_t );
+
+/**
+ * It returns a list (terminated with the value 0) of fourccs in decreasing
+ * priority order for the given chroma. It will return either YUV or RGB
+ * fallbacks depending on whether or not the fourcc given is YUV.
+ *
+ * It will always return a non NULL pointer that must not be freed.
+ */
+VLC_API const vlc_fourcc_t * vlc_fourcc_GetFallback( vlc_fourcc_t );
 
 /**
  * It returns true if the given fourcc is YUV and false otherwise.

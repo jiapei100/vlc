@@ -5,7 +5,6 @@
  * Copyright © 2007-2011 Mirsal Ennaime
  * Copyright © 2009-2011 The VideoLAN team
  * Copyright © 2013      Alex Merry
- * $Id$
  *
  * Authors:    Mirsal Ennaime <mirsal at mirsal fr>
  *             Rafaël Carré <funman at videolanorg>
@@ -31,7 +30,7 @@
 #endif
 
 #include <vlc_common.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 #include <vlc_input.h>
 
 #include <assert.h>
@@ -411,8 +410,6 @@ DBUS_METHOD( GetAllProperties )
         dbus_error_free( &error );
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
-
-    msg_Dbg( (vlc_object_t*) p_this, "Getting All properties" );
 
     if( !dbus_message_iter_open_container( &args, DBUS_TYPE_ARRAY, "{sv}", &dict ) )
         return DBUS_HANDLER_RESULT_NEED_MEMORY;

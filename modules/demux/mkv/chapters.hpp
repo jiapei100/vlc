@@ -2,7 +2,6 @@
  * chapters.hpp : matroska demuxer
  *****************************************************************************
  * Copyright (C) 2003-2004 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Steve Lhomme <steve.lhomme@free.fr>
@@ -74,7 +73,7 @@ public:
     bool                        ParentOf( const chapter_item_c & item ) const;
     int16                       GetTitleNumber( ) const;
 
-    int64_t                     i_start_time, i_end_time;
+    vlc_tick_t                  i_start_time, i_end_time;
     std::vector<chapter_item_c*> sub_chapters;
     KaxChapterSegmentUID        *p_segment_uid;
     KaxChapterSegmentEditionUID *p_segment_edition_uid;

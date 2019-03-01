@@ -3,7 +3,6 @@
  *****************************************************************************
  * Copyright (C) 1998-2008 VLC authors and VideoLAN
  * Copyright (C) 2008 Laurent Aimar
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *
@@ -120,6 +119,5 @@ void input_DecoderGetObjects( decoder_t *, vout_thread_t **, audio_output_t ** )
 void input_DecoderSetVoutMouseEvent( decoder_t *, vlc_mouse_event, void * );
 int  input_DecoderAddVoutOverlay( decoder_t *, subpicture_t *, int * );
 int  input_DecoderFlushVoutOverlay( decoder_t *, int );
-int  input_DecoderSetSpuHighlight( decoder_t *, const vlc_spu_highlight_t * );
 
 #endif

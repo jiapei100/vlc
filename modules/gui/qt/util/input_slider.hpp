@@ -2,7 +2,6 @@
  * input_slider.hpp : VolumeSlider and SeekSlider
  ****************************************************************************
  * Copyright (C) 2006-2011 the VideoLAN team
- * $Id$
  *
  * Authors: Clément Stenac <zorglub@videolan.org>
  *          Jean-Baptiste Kempf <jb@videolan.org>
@@ -118,7 +117,7 @@ private:
     QTimer *startAnimLoadingTimer;
 
 public slots:
-    void setPosition( float, int64_t, int );
+    void setPosition( float, vlc_tick_t, int );
     void setSeekable( bool b ) { b_seekable = b ; }
     void updateBuffering( float );
     void hideHandle();

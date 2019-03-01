@@ -2,7 +2,6 @@
  * lirc.c : lirc module for vlc
  *****************************************************************************
  * Copyright (C) 2003-2005 the VideoLAN team
- * $Id$
  *
  * Author: Sigmund Augdal Helberg <dnumgis@videolan.org>
  *
@@ -197,7 +196,7 @@ static void Process( intf_thread_t *p_intf )
             {
                 vlc_action_id_t i_key = vlc_actions_get_id( c );
                 if( i_key )
-                    var_SetInteger( p_intf->obj.libvlc, "key-action", i_key );
+                    var_SetInteger( vlc_object_instance(p_intf), "key-action", i_key );
                 else
                     msg_Err( p_intf, "Unknown hotkey '%s'", c );
             }

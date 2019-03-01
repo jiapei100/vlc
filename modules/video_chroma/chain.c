@@ -2,7 +2,6 @@
  * chain.c : chain multiple video filter modules as a last resort solution
  *****************************************************************************
  * Copyright (C) 2007-2017 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Antoine Cellerier <dionoea at videolan dot org>
  *
@@ -172,7 +171,7 @@ static int Activate( filter_t *p_filter, int (*pf_build)(filter_t *) )
     }
 
     int type = VLC_VAR_INTEGER;
-    if( var_Type( p_filter->obj.parent, "chain-level" ) != 0 )
+    if( var_Type( vlc_object_parent(p_filter), "chain-level" ) != 0 )
         type |= VLC_VAR_DOINHERIT;
 
     var_Create( p_filter, "chain-level", type );
@@ -197,7 +196,7 @@ static int Activate( filter_t *p_filter, int (*pf_build)(filter_t *) )
         free( p_sys );
         return VLC_EGENERIC;
     }
-    else if( p_filter->b_allow_fmt_out_change )
+    if( p_filter->b_allow_fmt_out_change )
     {
         es_format_Clean( &p_filter->fmt_out );
         es_format_Copy( &p_filter->fmt_out,
@@ -234,7 +233,7 @@ static int ActivateFilter( vlc_object_t *p_this )
     if( !p_filter->b_allow_fmt_out_change || p_filter->psz_name == NULL )
         return VLC_EGENERIC;
 
-    if( var_Type( p_filter->obj.parent, "chain-filter-level" ) != 0 )
+    if( var_Type( vlc_object_parent(p_filter), "chain-filter-level" ) != 0 )
         return VLC_EGENERIC;
 
     var_Create( p_filter, "chain-filter-level", VLC_VAR_INTEGER );

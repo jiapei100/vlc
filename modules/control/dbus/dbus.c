@@ -5,7 +5,6 @@
  * Copyright © 2007-2012 Mirsal Ennaime
  * Copyright © 2009-2012 The VideoLAN team
  * Copyright © 2013      Alex Merry
- * $Id$
  *
  * Authors:    Rafaël Carré <funman at videolanorg>
  *             Mirsal Ennaime <mirsal at mirsal fr>
@@ -57,7 +56,7 @@
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_interface.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 #include <vlc_input.h>
 #include <vlc_meta.h>
 #include <vlc_tick.h>
@@ -148,6 +147,7 @@ vlc_module_end ()
 static int Open( vlc_object_t *p_this )
 {
     intf_thread_t   *p_intf = (intf_thread_t*)p_this;
+    vlc_object_t *vlc = VLC_OBJECT(vlc_object_instance(p_this));
 
     /* initialisation of the connection */
     if( !dbus_threads_init_default() )
@@ -195,7 +195,7 @@ static int Open( vlc_object_t *p_this )
 
     /* Try to register org.mpris.MediaPlayer2.vlc */
     const unsigned bus_flags = DBUS_NAME_FLAG_DO_NOT_QUEUE;
-    var_Create(p_intf->obj.libvlc, "dbus-mpris-name", VLC_VAR_STRING);
+    var_Create(vlc, "dbus-mpris-name", VLC_VAR_STRING);
     if( dbus_bus_request_name( p_conn, DBUS_MPRIS_BUS_NAME, bus_flags, NULL )
                                      != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER )
     {
@@ -213,15 +213,13 @@ static int Open( vlc_object_t *p_this )
                                      == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER )
         {
             msg_Dbg( p_intf, "listening on dbus as: %s", unique_service );
-            var_SetString(p_intf->obj.libvlc, "dbus-mpris-name",
-                          unique_service);
+            var_SetString(vlc, "dbus-mpris-name", unique_service);
         }
     }
     else
     {
         msg_Dbg( p_intf, "listening on dbus as: %s", DBUS_MPRIS_BUS_NAME );
-        var_SetString(p_intf->obj.libvlc, "dbus-mpris-name",
-                      DBUS_MPRIS_BUS_NAME);
+        var_SetString(vlc, "dbus-mpris-name", DBUS_MPRIS_BUS_NAME);
     }
     dbus_connection_flush( p_conn );
 
@@ -265,7 +263,7 @@ static int Open( vlc_object_t *p_this )
     return VLC_SUCCESS;
 
 error:
-    var_Destroy(p_intf->obj.libvlc, "dbus-mpris-name");
+    var_Destroy(vlc, "dbus-mpris-name");
     /* The dbus connection is private,
      * so we are responsible for closing it
      * XXX: Does this make sense when OOM ? */
@@ -554,7 +552,7 @@ static void ProcessEvents( intf_thread_t *p_intf,
         {
             playlist_t *p_playlist = p_intf->p_sys->p_playlist;
             PL_LOCK;
-            b_can_play = playlist_CurrentSize( p_playlist ) > 0;
+            b_can_play = !playlist_IsEmpty( p_playlist );
             PL_UNLOCK;
 
             if( b_can_play != p_intf->p_sys->b_can_play )

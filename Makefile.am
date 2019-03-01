@@ -10,6 +10,8 @@ SUBDIRS = compat doc po share src modules lib bin test
 DIST_SUBDIRS = m4 $(SUBDIRS)
 
 EXTRA_DIST = \
+	extras/include/x86/x86inc.asm \
+	extras/include/x86/x86util.asm \
 	extras/package/macosx/package.mak \
 	extras/package/win32/package.mak \
 	extras/package/npapi.am
@@ -187,7 +189,7 @@ lcov-raw.out:
 
 lcov.out: lcov-raw.out
 	lcov -r lcov-raw.out -o lcov.out \
-		'*test*' 'contrib/*' '/usr/include/*'
+		'*test*' 'contrib/*' '/usr/include/*' '*mock*'
 
 lcov: lcov.out
 	rm -Rf lcov lcov.tmp

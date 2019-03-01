@@ -257,7 +257,7 @@ SoXR_Resample( filter_t *p_filter, soxr_t soxr, block_t *p_in, size_t i_olen )
 
     p_out->i_buffer = i_odone * i_oframesize;
     p_out->i_nb_samples = i_odone;
-    p_out->i_length = i_odone * CLOCK_FREQ / p_filter->fmt_out.audio.i_rate;
+    p_out->i_length = vlc_tick_from_samples(i_odone, p_filter->fmt_out.audio.i_rate);
 
     if( p_in )
     {
@@ -302,7 +302,7 @@ Resample( filter_t *p_filter, block_t *p_in )
         block_t *p_flushed_out = NULL, *p_out = NULL;
         const double f_ratio = p_filter->fmt_out.audio.i_rate
                              / (double) p_filter->fmt_in.audio.i_rate;
-        const size_t i_olen = SoXR_GetOutLen( p_in->i_nb_samples, f_ratio );
+        const size_t i_olen = SoXR_GetOutLen( p_in->i_nb_samples, 1.0f );
 
         if( f_ratio != p_sys->f_fixed_ratio )
         {

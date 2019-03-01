@@ -2,7 +2,6 @@
  * controller_widget.hpp : Controller Widget for the controllers
  ****************************************************************************
  * Copyright (C) 2006-2008 the VideoLAN team
- * $Id$
  *
  * Authors: Jean-Baptiste Kempf <jb@videolan.org>
  *
@@ -30,7 +29,6 @@
 
 #include "qt.hpp"
 #include "input_manager.hpp"
-#include <vlc_vout.h>                       /* vout_thread_t for aspect ratio combobox */
 
 #include <QWidget>
 #include <QToolButton>

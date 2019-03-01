@@ -2,7 +2,6 @@
  * menus.cpp : Qt menus
  *****************************************************************************
  * Copyright © 2006-2011 the VideoLAN team
- * $Id$
  *
  * Authors: Clément Stenac <zorglub@videolan.org>
  *          Jean-Baptiste Kempf <jb@videolan.org>
@@ -33,7 +32,6 @@
 
 #include <vlc_common.h>
 #include <vlc_intf_strings.h>
-#include <vlc_vout.h>                             /* vout_thread_t */
 #include <vlc_aout.h>                             /* audio_output_t */
 
 #include "menus.hpp"
@@ -733,7 +731,7 @@ QMenu *VLCMenuBar::NavigMenu( intf_thread_t *p_intf, QMenu *menu )
     menu->addSeparator();
 
     if ( !VLCMenuBar::rendererMenu )
-        VLCMenuBar::rendererMenu = new RendererMenu( menu, p_intf );
+        VLCMenuBar::rendererMenu = new RendererMenu( NULL, p_intf );
 
     menu->addMenu( VLCMenuBar::rendererMenu );
     menu->addSeparator();
@@ -1092,7 +1090,7 @@ QMenu* VLCMenuBar::PopupMenu( intf_thread_t *p_intf, bool show )
         /* In skins interface, append some items */
         if( p_intf->p_sys->b_isDialogProvider )
         {
-            vlc_object_t* p_object = p_intf->obj.parent;
+            vlc_object_t* p_object = vlc_object_parent(p_intf);
             submenu->setTitle( qtr( "Interface" ) );
 
             /* Open skin dialog box */

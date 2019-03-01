@@ -2,7 +2,6 @@
  * plugins.cpp : Plug-ins and extensions listing
  ****************************************************************************
  * Copyright (C) 2008-2010 the VideoLAN team
- * $Id$
  *
  * Authors: Jean-Baptiste Kempf <jb (at) videolan.org>
  *          Jean-Philippe André <jpeg (at) videolan.org>
@@ -712,7 +711,6 @@ void ExtensionListModel::updateList()
         extensions.append( ext );
     }
     vlc_mutex_unlock( &p_mgr->lock );
-    vlc_object_release( p_mgr );
 
     emit dataChanged( index( 0 ), index( rowCount() - 1 ) );
 }
@@ -727,7 +725,6 @@ int ExtensionListModel::rowCount( const QModelIndex& ) const
     vlc_mutex_lock( &p_mgr->lock );
     count = p_mgr->extensions.i_size;
     vlc_mutex_unlock( &p_mgr->lock );
-    vlc_object_release( p_mgr );
 
     return count;
 }

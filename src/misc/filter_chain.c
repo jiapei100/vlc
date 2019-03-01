@@ -82,6 +82,8 @@ static filter_chain_t *filter_chain_NewInner( const filter_owner_t *callbacks,
     chain->callbacks = *callbacks;
     if( owner != NULL )
         chain->owner = *owner;
+    else
+        memset(&chain->owner, 0, sizeof(chain->owner));
     chain->first = NULL;
     chain->last = NULL;
     es_format_Init( &chain->fmt_in, cat, 0 );
@@ -381,9 +383,8 @@ bool filter_chain_IsEmpty(const filter_chain_t *chain)
     return chain->first == NULL;
 }
 
-const es_format_t *filter_chain_GetFmtOut( filter_chain_t *p_chain )
+const es_format_t *filter_chain_GetFmtOut( const filter_chain_t *p_chain )
 {
-
     if( p_chain->b_allow_fmt_out_change )
         return &p_chain->fmt_out;
 

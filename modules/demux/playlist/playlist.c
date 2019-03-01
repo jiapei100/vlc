@@ -2,7 +2,6 @@
  * playlist.c :  Playlist import module
  *****************************************************************************
  * Copyright (C) 2004 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Clément Stenac <zorglub@videolan.org>
  *
@@ -114,9 +113,9 @@ vlc_module_begin ()
         set_capability( "stream_filter", 312 )
         set_callbacks( Import_IFO, NULL )
     add_submodule ()
-	set_description( N_("Dummy BDMV demux") )
-	set_capability( "stream_filter", 312 )
-	set_callbacks( Import_BDMV, NULL )
+        set_description( N_("Dummy BDMV demux") )
+        set_capability( "stream_filter", 312 )
+        set_callbacks( Import_BDMV, NULL )
     add_submodule ()
         set_description( N_("iTunes Music Library importer") )
         add_shortcut( "itml" )

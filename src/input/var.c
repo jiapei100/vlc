@@ -2,7 +2,6 @@
  * var.c: object variables for input thread
  *****************************************************************************
  * Copyright (C) 2004-2007 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *
@@ -76,6 +75,9 @@ static int RecordCallback( vlc_object_t *p_this, char const *psz_cmd,
 static int FrameNextCallback( vlc_object_t *p_this, char const *psz_cmd,
                               vlc_value_t oldval, vlc_value_t newval,
                               void *p_data );
+static int SubFpsCallback( vlc_object_t *p_this, char const *psz_cmd,
+                           vlc_value_t oldval, vlc_value_t newval,
+                           void *p_data );
 static void input_LegacyVarTitle( input_thread_t *p_input, int i_title );
 static void input_LegacyVarNavigation( input_thread_t *p_input );
 
@@ -110,6 +112,7 @@ static const vlc_input_callback_t p_input_callbacks[] =
     CALLBACK( "spu-es", EsSpuCallback ),
     CALLBACK( "record", RecordCallback ),
     CALLBACK( "frame-next", FrameNextCallback ),
+    CALLBACK( "sub-fps", SubFpsCallback ),
 
     CALLBACK( NULL, NULL )
 };
@@ -192,7 +195,7 @@ static void UpdateBookmarksOption( input_thread_t *p_input )
         /* Append bookmark to option-buffer */
         /* TODO: escape inappropriate values */
         vlc_memstream_printf( &vstr, "%s{name=%s,time=%.3f}",
-            i > 0 ? "," : "", sp->psz_name, ( 1. * sp->i_time_offset ) / CLOCK_FREQ );
+            i > 0 ? "," : "", sp->psz_name, secf_from_vlc_tick(sp->i_time_offset) );
     }
 
     if( vlc_memstream_close( &vstr ) )
@@ -289,10 +292,10 @@ void input_LegacyEvents( input_thread_t *p_input,
             var_Change( p_input, "length", VLC_VAR_SETVALUE, val );
             break;
         case INPUT_EVENT_TITLE:
-            val.i_int = event->title;
+            val.i_int = event->title.action == VLC_INPUT_TITLE_NEW_LIST ? 0 : event->title.selected_idx;
             var_Change( p_input, "title", VLC_VAR_SETVALUE, val );
             input_LegacyVarNavigation( p_input );
-            input_LegacyVarTitle( p_input, event->title );
+            input_LegacyVarTitle( p_input, val.i_int );
             break;
         case INPUT_EVENT_CHAPTER:
             /* "chapter" */
@@ -313,6 +316,11 @@ void input_LegacyEvents( input_thread_t *p_input,
                     break;
                 case VLC_INPUT_PROGRAM_DELETED:
                     VarListDel( p_input, "program", event->program.id );
+                    break;
+                case VLC_INPUT_PROGRAM_UPDATED:
+                    VarListDel( p_input, "program", event->program.id );
+                    VarListAdd( p_input, "program", event->program.id,
+                                event->program.title );
                     break;
                 case VLC_INPUT_PROGRAM_SELECTED:
                     VarListSelect( p_input, "program", event->program.id );
@@ -339,8 +347,7 @@ void input_LegacyEvents( input_thread_t *p_input,
                             /* First one, we need to add the "Disable" choice */
                             VarListAdd( p_input, varname, -1, _("Disable") );
                         }
-                        VarListAdd( p_input, varname, event->es.fmt->i_id,
-                                    event->es.title );
+                        VarListAdd( p_input, varname, event->es.fmt->i_id, event->es.title );
                     }
 
                     if( EsFmtIsTeletext( event->es.fmt ) )
@@ -376,6 +383,8 @@ void input_LegacyEvents( input_thread_t *p_input,
                         VarListSelect( p_input, "teletext-es", i_id );
                     break;
                 }
+                case VLC_INPUT_ES_UPDATED:
+                    break;
             }
             break;
         case INPUT_EVENT_RECORD:
@@ -411,11 +420,12 @@ void input_LegacyEvents( input_thread_t *p_input,
             val.f_float = event->cache;
             var_Change( p_input, "cache", VLC_VAR_SETVALUE, val );
             break;
-        case INPUT_EVENT_AOUT:
-            break;
         case INPUT_EVENT_VOUT:
-            break;
         case INPUT_EVENT_SUBITEMS:
+        case INPUT_EVENT_THUMBNAIL_READY:
+        case INPUT_EVENT_VBI_PAGE:
+        case INPUT_EVENT_VBI_TRANSPARENCY:
+        case INPUT_EVENT_SUBS_FPS:
             break;
     }
     Trigger( p_input, event->type );
@@ -529,6 +539,7 @@ void input_LegacyVarInit ( input_thread_t *p_input )
 
     /* Special "intf-event" variable. */
     var_Create( p_input, "intf-event", VLC_VAR_INTEGER );
+    var_Create( p_input, "sub-fps", VLC_VAR_FLOAT | VLC_VAR_DOINHERIT );
 
     /* Add all callbacks
      * XXX we put callback only in non preparsing mode. We need to create the variable
@@ -587,8 +598,7 @@ static void input_LegacyVarNavigation( input_thread_t *p_input )
         sprintf( title, "title %2u", i );
         var_Destroy( p_input, title );
         var_Create( p_input, title, VLC_VAR_INTEGER | VLC_VAR_ISCOMMAND );
-        var_AddCallback( p_input, title,
-                         NavigationCallback, (void *)(intptr_t)i );
+        var_AddCallback( p_input, title, NavigationCallback, NULL );
 
         char psz_length[MSTRTIME_MAX_SIZE + sizeof(" []")];
         if( input_priv(p_input)->title[i]->i_length > 0 )
@@ -791,6 +801,9 @@ void input_ConfigVarInit ( input_thread_t *p_input )
     var_Create( p_input, "meta-description", VLC_VAR_STRING|VLC_VAR_DOINHERIT);
     var_Create( p_input, "meta-date", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
     var_Create( p_input, "meta-url", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
+
+    /* Inherited by demux/subtitle.c */
+    var_Create( p_input, "sub-original-fps", VLC_VAR_FLOAT );
 }
 
 /*****************************************************************************
@@ -831,7 +844,6 @@ static int RateCallback( vlc_object_t *p_this, char const *psz_cmd,
     input_thread_t *p_input = (input_thread_t*)p_this;
     VLC_UNUSED(oldval); VLC_UNUSED(p_data); VLC_UNUSED(psz_cmd);
 
-    newval.i_int = INPUT_RATE_DEFAULT / newval.f_float;
     input_ControlPushHelper( p_input, INPUT_CONTROL_SET_RATE, &newval );
 
     return VLC_SUCCESS;
@@ -867,7 +879,7 @@ static int TimeCallback( vlc_object_t *p_this, char const *psz_cmd,
     VLC_UNUSED(psz_cmd); VLC_UNUSED(oldval); VLC_UNUSED(p_data);
 
     /* Update "position" for better intf behaviour */
-    const int64_t i_length = var_GetInteger( p_input, "length" );
+    const vlc_tick_t i_length = var_GetInteger( p_input, "length" );
     if( i_length > 0 && newval.i_int >= 0 && newval.i_int <= i_length )
     {
         vlc_value_t val;
@@ -891,7 +903,7 @@ static int TimeOffsetCallback( vlc_object_t *obj, char const *varname,
 {
     VLC_UNUSED(varname); VLC_UNUSED(prev); VLC_UNUSED(data);
 
-    int64_t i_time = var_GetInteger( obj, "time" ) + cur.i_int;
+    vlc_tick_t i_time = var_GetInteger( obj, "time" ) + cur.i_int;
     if( i_time < 0 )
         i_time = 0;
     var_SetInteger( obj, "time", i_time );
@@ -995,7 +1007,7 @@ static int NavigationCallback( vlc_object_t *p_this, char const *psz_cmd,
     VLC_UNUSED(psz_cmd); VLC_UNUSED(oldval);
 
     /* Issue a title change */
-    val.i_int = (intptr_t)p_data;
+    sscanf(psz_cmd, "title %"SCNu64, &val.i_int);
     input_ControlPushHelper( p_input, INPUT_CONTROL_SET_TITLE, &val );
 
     var_Change( p_input, "title", VLC_VAR_SETVALUE, val );
@@ -1004,7 +1016,7 @@ static int NavigationCallback( vlc_object_t *p_this, char const *psz_cmd,
     input_ControlPushHelper( p_input, INPUT_CONTROL_SET_SEEKPOINT, &newval );
 
     var_Change( p_input, "chapter", VLC_VAR_SETVALUE, newval );
-
+    (void) p_data;
     return VLC_SUCCESS;
 }
 
@@ -1017,7 +1029,7 @@ static int EsVideoCallback( vlc_object_t *p_this, char const *psz_cmd,
     if( newval.i_int < 0 )
         newval.i_int = -VIDEO_ES; /* disable video es */
 
-    input_ControlPushHelper( p_input, INPUT_CONTROL_SET_ES, &newval );
+    input_ControlPushHelper( p_input, INPUT_CONTROL_SET_ES_BY_ID, &newval );
 
     return VLC_SUCCESS;
 }
@@ -1031,7 +1043,7 @@ static int EsAudioCallback( vlc_object_t *p_this, char const *psz_cmd,
     if( newval.i_int < 0 )
         newval.i_int = -AUDIO_ES; /* disable audio es */
 
-    input_ControlPushHelper( p_input, INPUT_CONTROL_SET_ES, &newval );
+    input_ControlPushHelper( p_input, INPUT_CONTROL_SET_ES_BY_ID, &newval );
 
     return VLC_SUCCESS;
 }
@@ -1045,7 +1057,7 @@ static int EsSpuCallback( vlc_object_t *p_this, char const *psz_cmd,
     if( newval.i_int < 0 )
         newval.i_int = -SPU_ES; /* disable spu es */
 
-    input_ControlPushHelper( p_input, INPUT_CONTROL_SET_ES, &newval );
+    input_ControlPushHelper( p_input, INPUT_CONTROL_SET_ES_BY_ID, &newval );
 
     return VLC_SUCCESS;
 }
@@ -1056,14 +1068,16 @@ static int EsDelayCallback ( vlc_object_t *p_this, char const *psz_cmd,
     input_thread_t *p_input = (input_thread_t*)p_this;
     VLC_UNUSED(oldval); VLC_UNUSED(p_data);
 
+    input_control_param_t param = {
+        .delay = {
+            .b_absolute = true,
+            .i_val = newval.i_int,
+        },
+    };
     if( !strcmp( psz_cmd, "audio-delay" ) )
-    {
-        input_ControlPushHelper( p_input, INPUT_CONTROL_SET_AUDIO_DELAY, &newval );
-    }
+        input_ControlPush( p_input, INPUT_CONTROL_SET_AUDIO_DELAY, &param );
     else if( !strcmp( psz_cmd, "spu-delay" ) )
-    {
-        input_ControlPushHelper( p_input, INPUT_CONTROL_SET_SPU_DELAY, &newval );
-    }
+        input_ControlPush( p_input, INPUT_CONTROL_SET_SPU_DELAY, &param );
     return VLC_SUCCESS;
 }
 
@@ -1104,3 +1118,15 @@ static int FrameNextCallback( vlc_object_t *p_this, char const *psz_cmd,
     return VLC_SUCCESS;
 }
 
+static int SubFpsCallback( vlc_object_t *p_this, char const *psz_cmd,
+                           vlc_value_t oldval, vlc_value_t newval,
+                           void *p_data )
+{
+    input_thread_t *p_input = (input_thread_t*)p_this;
+    VLC_UNUSED(psz_cmd); VLC_UNUSED(oldval); VLC_UNUSED(p_data);
+    VLC_UNUSED(newval);
+
+    input_ControlPushHelper( p_input, INPUT_CONTROL_SET_SUBS_FPS, &newval );
+
+    return VLC_SUCCESS;
+}

@@ -31,6 +31,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#define _DECL_DLLMAIN
 #include <vlc_common.h>
 #include <vlc_aout.h>
 #include <vlc_demux.h>
@@ -40,9 +41,7 @@
 
 static LARGE_INTEGER freq; /* performance counters frequency */
 
-BOOL WINAPI DllMain(HINSTANCE, DWORD, LPVOID); /* avoid warning */
-
-BOOL WINAPI DllMain(HINSTANCE dll, DWORD reason, LPVOID reserved)
+BOOL WINAPI DllMain(HANDLE dll, DWORD reason, LPVOID reserved)
 {
     (void) dll;
     (void) reserved;
@@ -356,7 +355,7 @@ static int Control(demux_t *demux, int query, va_list ap)
     switch (query)
     {
         case DEMUX_GET_TIME:
-            *(va_arg(ap, int64_t *)) = vlc_tick_now() - sys->start_time;
+            *(va_arg(ap, vlc_tick_t *)) = vlc_tick_now() - sys->start_time;
             break;
 
         case DEMUX_GET_PTS_DELAY:

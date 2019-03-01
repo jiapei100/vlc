@@ -2,7 +2,6 @@
  * dec.c : audio output API towards decoders
  *****************************************************************************
  * Copyright (C) 2002-2007 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *
@@ -41,10 +40,9 @@
 /**
  * Creates an audio output
  */
-int aout_DecNew( audio_output_t *p_aout,
-                 const audio_sample_format_t *p_format,
-                 const audio_replay_gain_t *p_replay_gain,
-                 const aout_request_vout_t *p_request_vout )
+int aout_DecNew(audio_output_t *p_aout,
+                const audio_sample_format_t *p_format,
+                const audio_replay_gain_t *p_replay_gain)
 {
     if( p_format->i_bitspersample > 0 )
     {
@@ -80,7 +78,6 @@ int aout_DecNew( audio_output_t *p_aout,
     atomic_store_explicit(&owner->restart, 0, memory_order_relaxed);
     owner->input_format = *p_format;
     owner->mixer_format = owner->input_format;
-    owner->request_vout = *p_request_vout;
 
     owner->filters_cfg = AOUT_FILTERS_CFG_INIT;
     if (aout_OutputNew (p_aout, &owner->mixer_format, &owner->filters_cfg))
@@ -88,9 +85,8 @@ int aout_DecNew( audio_output_t *p_aout,
     aout_volume_SetFormat (owner->volume, owner->mixer_format.i_format);
 
     /* Create the audio filtering "input" pipeline */
-    owner->filters = aout_FiltersNew (p_aout, p_format, &owner->mixer_format,
-                                      &owner->request_vout,
-                                      &owner->filters_cfg);
+    owner->filters = aout_FiltersNew(p_aout, p_format, &owner->mixer_format,
+                                     &owner->filters_cfg);
     if (owner->filters == NULL)
     {
         aout_OutputDelete (p_aout);
@@ -101,7 +97,6 @@ error:
     }
 
     owner->sync.rate = 1.f;
-    owner->sync.end = VLC_TICK_INVALID;
     owner->sync.resamp_type = AOUT_RESAMPLING_NONE;
     owner->sync.discontinuity = true;
 
@@ -160,15 +155,13 @@ static int aout_CheckReady (audio_output_t *aout)
         }
 
         msg_Dbg (aout, "restarting filters...");
-        owner->sync.end = VLC_TICK_INVALID;
         owner->sync.resamp_type = AOUT_RESAMPLING_NONE;
 
         if (owner->mixer_format.i_format)
         {
-            owner->filters = aout_FiltersNew (aout, &owner->input_format,
-                                              &owner->mixer_format,
-                                              &owner->request_vout,
-                                              &owner->filters_cfg);
+            owner->filters = aout_FiltersNew(aout, &owner->input_format,
+                                             &owner->mixer_format,
+                                             &owner->filters_cfg);
             if (owner->filters == NULL)
             {
                 aout_OutputDelete (aout);
@@ -209,7 +202,7 @@ static void aout_DecSilence (audio_output_t *aout, vlc_tick_t length, vlc_tick_t
 {
     aout_owner_t *owner = aout_owner (aout);
     const audio_sample_format_t *fmt = &owner->mixer_format;
-    size_t frames = (fmt->i_rate * length) / CLOCK_FREQ;
+    size_t frames = samples_from_vlc_tick(length, fmt->i_rate);
 
     block_t *block = block_Alloc (frames * fmt->i_bytes_per_frame
                                   / fmt->i_frame_length);
@@ -258,7 +251,7 @@ static void aout_DecSynchronize(audio_output_t *aout, vlc_tick_t dec_pts)
      * where supported. The other alternative is to flush the buffers
      * completely. */
     if (drift > (owner->sync.discontinuity ? 0
-                : lroundf(+3 * AOUT_MAX_PTS_DELAY * rate)))
+                : lroundf(+3 * AOUT_MAX_PTS_DELAY / rate)))
     {
         if (!owner->sync.discontinuity)
             msg_Warn (aout, "playback way too late (%"PRId64"): "
@@ -269,7 +262,6 @@ static void aout_DecSynchronize(audio_output_t *aout, vlc_tick_t dec_pts)
         aout->flush(aout, false);
 
         aout_StopResampling (aout);
-        owner->sync.end = VLC_TICK_INVALID;
         owner->sync.discontinuity = true;
 
         /* Now the output might be too early... Recheck. */
@@ -281,7 +273,7 @@ static void aout_DecSynchronize(audio_output_t *aout, vlc_tick_t dec_pts)
     /* Early audio output.
      * This is rare except at startup when the buffers are still empty. */
     if (drift < (owner->sync.discontinuity ? 0
-                : lroundf(-3 * AOUT_MAX_PTS_ADVANCE * rate)))
+                : lroundf(-3 * AOUT_MAX_PTS_ADVANCE / rate)))
     {
         if (!owner->sync.discontinuity)
             msg_Warn (aout, "playback way too early (%"PRId64"): "
@@ -352,8 +344,8 @@ int aout_DecPlay(audio_output_t *aout, block_t *block)
 
     assert (block->i_pts != VLC_TICK_INVALID);
 
-    block->i_length = CLOCK_FREQ * block->i_nb_samples
-                                 / owner->input_format.i_rate;
+    block->i_length = vlc_tick_from_samples( block->i_nb_samples,
+                                   owner->input_format.i_rate );
 
     int ret = aout_CheckReady (aout);
     if (unlikely(ret == AOUT_DEC_FAILED))
@@ -372,7 +364,7 @@ int aout_DecPlay(audio_output_t *aout, block_t *block)
 
     block = aout_FiltersPlay(owner->filters, block, owner->sync.rate);
     if (block == NULL)
-        goto lost;
+        return ret;
 
     /* Software volume */
     aout_volume_Amplify (owner->volume, block);
@@ -381,7 +373,6 @@ int aout_DecPlay(audio_output_t *aout, block_t *block)
     aout_DecSynchronize(aout, block->i_pts);
 
     /* Output */
-    owner->sync.end = block->i_pts + block->i_length + 1;
     owner->sync.discontinuity = false;
     aout->play(aout, block, block->i_pts);
     atomic_fetch_add_explicit(&owner->buffers_played, 1, memory_order_relaxed);
@@ -389,7 +380,6 @@ int aout_DecPlay(audio_output_t *aout, block_t *block)
 drop:
     owner->sync.discontinuity = true;
     block_Release (block);
-lost:
     atomic_fetch_add_explicit(&owner->buffers_lost, 1, memory_order_relaxed);
     return ret;
 }
@@ -409,14 +399,6 @@ void aout_DecChangePause (audio_output_t *aout, bool paused, vlc_tick_t date)
 {
     aout_owner_t *owner = aout_owner (aout);
 
-    if (owner->sync.end != VLC_TICK_INVALID)
-    {
-        if (paused)
-            owner->sync.end -= date;
-        else
-            owner->sync.end += date;
-    }
-
     if (owner->mixer_format.i_format)
         aout->pause(aout, paused, date);
 }
@@ -432,7 +414,6 @@ void aout_DecFlush (audio_output_t *aout, bool wait)
 {
     aout_owner_t *owner = aout_owner (aout);
 
-    owner->sync.end = VLC_TICK_INVALID;
     if (owner->mixer_format.i_format)
     {
         if (wait)
@@ -446,4 +427,5 @@ void aout_DecFlush (audio_output_t *aout, bool wait)
 
         aout->flush(aout, wait);
     }
+    owner->sync.discontinuity = true;
 }

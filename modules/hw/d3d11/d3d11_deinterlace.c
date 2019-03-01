@@ -107,6 +107,7 @@ static int RenderPic( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic,
                 D3D11_VIDEO_FRAME_FORMAT_INTERLACED_BOTTOM_FIELD_FIRST;
 
     ID3D11VideoContext_VideoProcessorSetStreamFrameFormat(p_sys->d3d_proc.d3dvidctx, p_sys->d3d_proc.videoProcessor, 0, frameFormat);
+    ID3D11VideoContext_VideoProcessorSetStreamAutoProcessingMode(p_sys->d3d_proc.d3dvidctx, p_sys->d3d_proc.videoProcessor, 0, FALSE);
 
     D3D11_VIDEO_PROCESSOR_STREAM stream = {0};
     stream.Enable = TRUE;
@@ -323,6 +324,12 @@ int D3D11OpenDeinterlace(vlc_object_t *obj)
     if (unlikely(sys == NULL))
         return VLC_ENOMEM;
     memset(sys, 0, sizeof (*sys));
+
+    if ( unlikely(D3D11_Create(filter, &sys->hd3d, false) != VLC_SUCCESS ))
+    {
+       msg_Err(filter, "Could not access the d3d11.");
+       goto error;
+    }
 
     D3D11_TEXTURE2D_DESC dstDesc;
     D3D11_FilterHoldInstance(filter, &sys->d3d_dev, &dstDesc);

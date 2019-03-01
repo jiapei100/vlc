@@ -1,12 +1,17 @@
 packetizerdir = $(pluginsdir)/packetizer
 
+libpacketizer_av1_plugin_la_SOURCES = packetizer/av1.c \
+                                      packetizer/av1.h \
+                                      packetizer/av1_obu.c \
+                                      packetizer/av1_obu.h
 libpacketizer_copy_plugin_la_SOURCES = packetizer/copy.c
 libpacketizer_mpegvideo_plugin_la_SOURCES = packetizer/mpegvideo.c \
                                             packetizer/iso_color_tables.h
 libpacketizer_mpeg4video_plugin_la_SOURCES = packetizer/mpeg4video.c \
                                              packetizer/iso_color_tables.h
 libpacketizer_mjpeg_plugin_la_SOURCES = packetizer/mjpeg.c
-libpacketizer_mpeg4audio_plugin_la_SOURCES = packetizer/mpeg4audio.c
+libpacketizer_mpeg4audio_plugin_la_SOURCES = packetizer/mpeg4audio.c \
+                                             packetizer/mpeg4audio.h
 libpacketizer_mpegaudio_plugin_la_SOURCES = packetizer/mpegaudio.c
 libpacketizer_h264_plugin_la_SOURCES = \
 	packetizer/h264_nal.c packetizer/h264_nal.h \
@@ -42,6 +47,7 @@ libpacketizer_avparser_plugin_la_LIBADD = $(AVCODEC_LIBS) $(AVUTIL_LIBS) $(LIBM)
 noinst_HEADERS += packetizer/packetizer_helper.h packetizer/startcode_helper.h
 
 packetizer_LTLIBRARIES = \
+	libpacketizer_av1_plugin.la \
 	libpacketizer_mpegvideo_plugin.la \
 	libpacketizer_mpeg4video_plugin.la \
 	libpacketizer_mjpeg_plugin.la \

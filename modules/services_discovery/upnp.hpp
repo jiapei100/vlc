@@ -27,16 +27,13 @@
 #include <vector>
 #include <string>
 
-#ifdef _WIN32
-#include <windows.h>
-#include <wincrypt.h>
-#endif
-
 #include "upnp-wrapper.hpp"
+#include "../stream_out/dlna/dlna_common.hpp"
 
 #include <vlc_url.h>
 #include <vlc_interrupt.h>
 #include <vlc_threads.h>
+#include <vlc_cxx_helpers.hpp>
 
 namespace SD
 {
@@ -124,6 +121,45 @@ private:
     char* m_psz_objectId;
     stream_t* m_access;
     input_item_node_t* m_node;
+};
+
+}
+
+namespace RD
+{
+
+struct MediaRendererDesc
+{
+    MediaRendererDesc( const std::string& udn, const std::string& fName,
+                    const std::string& base, const std::string& loc );
+    ~MediaRendererDesc();
+    std::string UDN;
+    std::string friendlyName;
+    std::string base_url;               // base url of the renderer
+    std::string location;               // device description url
+    vlc_renderer_item_t *inputItem;
+};
+
+class MediaRendererList : public UpnpInstanceWrapper::Listener
+{
+public:
+    MediaRendererList( vlc_renderer_discovery_t *p_rd );
+    ~MediaRendererList();
+
+    bool addRenderer(MediaRendererDesc *desc );
+    void removeRenderer(const std::string &udn );
+    MediaRendererDesc* getRenderer( const std::string& udn );
+    int onEvent( Upnp_EventType event_type,
+                 UpnpEventPtr p_event,
+                 void* p_user_data ) override;
+
+private:
+    void parseNewRenderer( IXML_Document* doc, const std::string& location );
+
+private:
+    vlc_renderer_discovery_t* const m_rd;
+    std::vector<MediaRendererDesc*> m_list;
+
 };
 
 }

@@ -60,15 +60,16 @@
 
 static void PrintObjectPrefix(vlc_object_t *obj, bool last)
 {
+    vlc_object_t *parent = vlc_object_parent(obj);
     const char *str;
 
-    if (obj->obj.parent == NULL)
+    if (parent == NULL)
         return;
 
-    PrintObjectPrefix(obj->obj.parent, false);
+    PrintObjectPrefix(parent, false);
 
     if (vlc_list_is_last(&vlc_internals(obj)->siblings,
-                         &vlc_internals(obj->obj.parent)->children))
+                         &vlc_internals(parent)->children))
         str = last ? " \xE2\x94\x94" : "  ";
     else
         str = last ? " \xE2\x94\x9C" : " \xE2\x94\x82";
@@ -85,7 +86,7 @@ static void PrintObject(vlc_object_t *obj)
     PrintObjectPrefix(obj, true);
     printf("\xE2\x94\x80\xE2\x94%c\xE2\x95\xB4%p %s, %u refs\n",
            vlc_list_is_empty(&priv->children) ? 0x80 : 0xAC,
-           (void *)obj, obj->obj.object_type, atomic_load(&priv->refs));
+           (void *)obj, vlc_object_typename(obj), atomic_load(&priv->refs));
 
     vlc_restorecancel (canc);
 }
@@ -173,8 +174,8 @@ static int VarsCommand (vlc_object_t *obj, char const *cmd,
     else
         vlc_object_hold (obj);
 
-    printf(" o %p %s, parent %p\n", (void *)obj,
-           obj->obj.object_type, (void *)obj->obj.parent);
+    printf(" o %p %s, parent %p\n", (void *)obj, vlc_object_typename(obj),
+           (void *)vlc_object_parent(obj));
     DumpVariables (obj);
     vlc_object_release (obj);
 
@@ -199,6 +200,8 @@ void *vlc_custom_create (vlc_object_t *parent, size_t length,
     vlc_object_internals_t *priv = malloc (sizeof (*priv) + length);
     if (unlikely(priv == NULL))
         return NULL;
+
+    priv->typename = typename;
     priv->psz_name = NULL;
     priv->var_root = NULL;
     vlc_mutex_init (&priv->var_lock);
@@ -210,8 +213,6 @@ void *vlc_custom_create (vlc_object_t *parent, size_t length,
     priv->resources = NULL;
 
     vlc_object_t *obj = (vlc_object_t *)(priv + 1);
-    obj->obj.object_type = typename;
-    obj->obj.header = NULL;
     obj->obj.force = false;
     memset (obj + 1, 0, length - sizeof (*obj)); /* type-specific stuff */
 
@@ -219,11 +220,11 @@ void *vlc_custom_create (vlc_object_t *parent, size_t length,
     {
         vlc_object_internals_t *papriv = vlc_internals (parent);
 
-        obj->obj.flags = parent->obj.flags;
-        obj->obj.libvlc = parent->obj.libvlc;
+        obj->obj.logger = parent->obj.logger;
+        obj->obj.no_interact = parent->obj.no_interact;
 
         /* Attach the child to its parent (no lock needed) */
-        obj->obj.parent = vlc_object_hold (parent);
+        priv->parent = vlc_object_hold(parent);
 
         /* Attach the parent to its child (structure lock needed) */
         vlc_mutex_lock (&papriv->tree_lock);
@@ -232,11 +233,8 @@ void *vlc_custom_create (vlc_object_t *parent, size_t length,
     }
     else
     {
-        libvlc_int_t *self = (libvlc_int_t *)obj;
-
-        obj->obj.flags = 0;
-        obj->obj.libvlc = self;
-        obj->obj.parent = NULL;
+        obj->obj.no_interact = false;
+        priv->parent = NULL;
 
         /* TODO: should be in src/libvlc.c */
         int canc = vlc_savecancel ();
@@ -278,6 +276,16 @@ void vlc_object_set_destructor( vlc_object_t *p_this,
     vlc_object_internals_t *p_priv = vlc_internals(p_this );
 
     p_priv->pf_destructor = pf_destructor;
+}
+
+const char *vlc_object_typename(const vlc_object_t *obj)
+{
+    return vlc_internals(obj)->typename;
+}
+
+vlc_object_t *(vlc_object_parent)(vlc_object_t *obj)
+{
+    return vlc_internals(obj)->parent;
 }
 
 static vlc_mutex_t name_lock = VLC_STATIC_MUTEX;
@@ -325,7 +333,7 @@ static void vlc_object_destroy( vlc_object_t *p_this )
     if( p_priv->pf_destructor )
         p_priv->pf_destructor( p_this );
 
-    if (unlikely(p_this->obj.parent == NULL))
+    if (unlikely(p_priv->parent == NULL))
     {
         /* TODO: should be in src/libvlc.c */
         var_DelCallback (p_this, "vars", VarsCommand, NULL);
@@ -338,7 +346,6 @@ static void vlc_object_destroy( vlc_object_t *p_this )
     vlc_mutex_destroy (&p_priv->tree_lock);
     vlc_cond_destroy( &p_priv->var_wait );
     vlc_mutex_destroy( &p_priv->var_lock );
-    free( p_this->obj.header );
     free( p_priv->psz_name );
     free( p_priv );
 }
@@ -367,13 +374,17 @@ static vlc_object_t *FindName (vlc_object_t *obj, const char *name)
     return found;
 }
 
+static int strcmp_void(const void *a, const void *b)
+{
+    return strcmp(a, b);
+}
+
 #undef vlc_object_find_name
 /**
  * Finds a named object and increment its reference count.
  * Beware that objects found in this manner can be "owned" by another thread,
  * be of _any_ type, and be attached to any module (if any). With such an
- * object reference, you can set or get object variables, emit log messages,
- * and read write-once object parameters (obj.object_type, etc).
+ * object reference, you can set or get object variables, emit log messages.
  * You CANNOT cast the object to a more specific object type, and you
  * definitely cannot invoke object type-specific callbacks with this.
  *
@@ -397,7 +408,7 @@ vlc_object_t *vlc_object_find_name( vlc_object_t *p_this, const char *psz_name )
      * wannabe code janitors, this is the list of names that remain used
      * and unfixed since then. */
     static const char bad[][5] = { "v4l2", "zvbi" };
-    if( bsearch( psz_name, bad, 2, 5, (void *)strcmp ) == NULL )
+    if( bsearch( psz_name, bad, 2, 5, strcmp_void ) == NULL )
         return NULL;
     msg_Err( p_this, "looking for object \"%s\"... FIXME XXX", psz_name );
 #endif
@@ -443,7 +454,7 @@ void vlc_object_release (vlc_object_t *obj)
         assert (refs > 0);
     }
 
-    vlc_object_t *parent = obj->obj.parent;
+    vlc_object_t *parent = vlc_object_parent(obj);
 
     if (unlikely(parent == NULL))
     {   /* Destroying the root object */

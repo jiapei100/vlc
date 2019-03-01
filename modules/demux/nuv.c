@@ -2,7 +2,6 @@
  * nuv.c:
  *****************************************************************************
  * Copyright (C) 2005 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Gertjan Van Droogenbroeck <gertjanvd _PLUS_ vlc _AT_ gmail _DOT_ com>
@@ -62,7 +61,7 @@ static int Control( demux_t *, int, va_list );
 /* */
 typedef struct
 {
-    int64_t i_time;
+    vlc_tick_t i_time;
     int64_t i_offset;
 
 } demux_index_entry_t;
@@ -81,7 +80,7 @@ static void demux_IndexClean( demux_index_t * );
 static void demux_IndexAppend( demux_index_t *,
                                int64_t i_time, int64_t i_offset );
 /* Convert a time into offset */
-static int64_t demux_IndexConvertTime( demux_index_t *, int64_t i_time );
+static int64_t demux_IndexConvertTime( demux_index_t *, vlc_tick_t i_time );
 /* Find the nearest offset in the index */
 static int64_t demux_IndexFindOffset( demux_index_t *, int64_t i_offset );
 
@@ -175,7 +174,7 @@ typedef struct
     header_t          hdr;
     extended_header_t exh;
 
-    int64_t     i_pcr;
+    vlc_tick_t  i_pcr;
     es_out_id_t *p_es_video;
     int         i_extra_f;
     uint8_t     *p_extra_f;
@@ -189,7 +188,7 @@ typedef struct
     /* frameheader buffer */
     uint8_t fh_buffer[NUV_FH_SIZE];
     int64_t i_total_frames;
-    int64_t i_total_length;
+    vlc_tick_t i_total_length;
     /* first frame position (used for calculating size without seektable) */
     int i_first_frame_offset;
 } demux_sys_t;
@@ -449,7 +448,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
     demux_sys_t *p_sys  = p_demux->p_sys;
 
     double   f, *pf;
-    int64_t i64, *pi64;
+    int64_t i64;
 
     switch( i_query )
     {
@@ -503,18 +502,16 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         }
 
         case DEMUX_GET_TIME:
-            pi64 = va_arg( args, int64_t * );
-            *pi64 = p_sys->i_pcr >= 0 ? p_sys->i_pcr : 0;
+            *va_arg( args, vlc_tick_t * ) = __MAX(p_sys->i_pcr, 0);
             return VLC_SUCCESS;
 
         case DEMUX_SET_TIME:
         {
             int64_t i_pos;
-            i64 = va_arg( args, int64_t );
 
             p_sys->i_pcr = -1;
 
-            i_pos = demux_IndexConvertTime( &p_sys->idx, i64 );
+            i_pos = demux_IndexConvertTime( &p_sys->idx, va_arg( args, vlc_tick_t ) );
             if( i_pos < 0 )
                 return VLC_EGENERIC;
             else
@@ -522,18 +519,21 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         }
 
         case DEMUX_GET_LENGTH:
-            pi64 = va_arg( args, int64_t * );
             if( p_sys->i_total_length >= 0 )
             {
-                *pi64 = p_sys->i_total_length;
+                *va_arg( args, vlc_tick_t * ) = p_sys->i_total_length;
                 return VLC_SUCCESS;
             }
             else if( vlc_stream_Tell( p_demux->s ) > p_sys->i_first_frame_offset )
             {
                 /* This should give an approximation of the total duration */
-                *pi64 = (double)( stream_Size( p_demux->s ) - p_sys->i_first_frame_offset ) /
-                        (double)( vlc_stream_Tell( p_demux->s ) - p_sys->i_first_frame_offset )
-                        * (double)( p_sys->i_pcr >= 0 ? p_sys->i_pcr : 0 );
+                if (p_sys->i_pcr <= 0)
+                    *va_arg( args, vlc_tick_t * ) = 0;
+                else
+                    *va_arg( args, vlc_tick_t * ) = p_sys->i_pcr *
+                            (double)( stream_Size( p_demux->s ) - p_sys->i_first_frame_offset ) /
+                            (double)( vlc_stream_Tell( p_demux->s ) - p_sys->i_first_frame_offset );
+
                 return VLC_SUCCESS;
             }
             else
@@ -848,13 +848,13 @@ static int SeekTableLoad( demux_t *p_demux, demux_sys_t *p_sys )
             kfa_entry_id++;
         }
 
-        i_time = (double)( (int64_t)frame * 1000000 ) / p_sys->hdr.d_fps;
         i_offset = GetQWLE( p_seek_table + j * 12 );
 
-        if( i_offset == 0 && i_time != 0 )
+        if( i_offset == 0 && frame != 0 )
             msg_Dbg( p_demux, "invalid file offset %d %"PRIi64, keyframe, i_offset );
         else
         {
+            i_time = (double)( (vlc_tick_t)frame * CLOCK_FREQ ) / p_sys->hdr.d_fps;
             demux_IndexAppend( &p_sys->idx, i_time , i_offset );
 #if 0
             msg_Dbg( p_demux, "adding entry position %d %"PRIi64 " file offset %"PRIi64, keyframe, i_time, i_offset );
@@ -955,7 +955,7 @@ static void demux_IndexAppend( demux_index_t *p_idx,
 
     p_idx->i_idx++;
 }
-static int64_t demux_IndexConvertTime( demux_index_t *p_idx, int64_t i_time )
+static int64_t demux_IndexConvertTime( demux_index_t *p_idx, vlc_tick_t i_time )
 {
     int i_min = 0;
     int i_max = p_idx->i_idx-1;

@@ -2,7 +2,6 @@
  * libvlc.c: libvlc instances creation and deletion, interfaces handling
  *****************************************************************************
  * Copyright (C) 1998-2008 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Vincent Seguin <seguin@via.ecp.fr>
  *          Samuel Hocevar <sam@zoy.org>
@@ -43,6 +42,7 @@
 #include "modules/modules.h"
 #include "config/configuration.h"
 #include "preparser/preparser.h"
+#include "media_source/media_source.h"
 
 #include <stdio.h>                                              /* sprintf() */
 #include <string.h>
@@ -51,6 +51,7 @@
 
 #include "config/vlc_getopt.h"
 
+#include <vlc_playlist_legacy.h>
 #include <vlc_playlist.h>
 #include <vlc_interface.h>
 
@@ -63,9 +64,10 @@
 #include <vlc_url.h>
 #include <vlc_modules.h>
 #include <vlc_media_library.h>
+#include <vlc_thumbnailer.h>
 
 #include "libvlc.h"
-#include "playlist/playlist_internal.h"
+#include "playlist_legacy/playlist_internal.h"
 #include "misc/variables.h"
 
 #include <vlc_vlm.h>
@@ -93,7 +95,9 @@ libvlc_int_t * libvlc_InternalCreate( void )
 
     priv = libvlc_priv (p_libvlc);
     priv->playlist = NULL;
+    priv->main_playlist = NULL;
     priv->p_vlm = NULL;
+    priv->media_source_provider = NULL;
 
     vlc_ExitInit( &priv->exit );
 
@@ -118,10 +122,11 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
     char        *psz_val;
     int          i_ret = VLC_EGENERIC;
 
+    if (unlikely(vlc_LogPreinit(p_libvlc)))
+        return VLC_ENOMEM;
+
     /* System specific initialization code */
     system_Init();
-
-    vlc_LogPreinit(p_libvlc);
 
     /* Initialize the module bank and load the configuration of the
      * core module. We need to do this at this stage to be able to display
@@ -225,6 +230,10 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
             msg_Warn( p_libvlc, "Media library initialization failed" );
     }
 
+    priv->p_thumbnailer = vlc_thumbnailer_Create( VLC_OBJECT( p_libvlc ) );
+    if ( priv->p_thumbnailer == NULL )
+        msg_Warn( p_libvlc, "Failed to instantiate VLC thumbnailer" );
+
     /*
      * Initialize hotkey handling
      */
@@ -236,6 +245,10 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
      */
     priv->parser = input_preparser_New(VLC_OBJECT(p_libvlc));
     if( !priv->parser )
+        goto error;
+
+    priv->media_source_provider = vlc_media_source_provider_New( VLC_OBJECT( p_libvlc ) );
+    if( !priv->media_source_provider )
         goto error;
 
     /* variables for signalling creation of new files */
@@ -371,8 +384,14 @@ void libvlc_InternalCleanup( libvlc_int_t *p_libvlc )
     msg_Dbg( p_libvlc, "removing all interfaces" );
     intf_DestroyAll( p_libvlc );
 
+    if ( priv->p_thumbnailer )
+        vlc_thumbnailer_Release( priv->p_thumbnailer );
+
     if ( priv->p_media_library )
         libvlc_MlRelease( priv->p_media_library );
+
+    if( priv->media_source_provider )
+        vlc_media_source_provider_Delete( priv->media_source_provider );
 
     libvlc_InternalDialogClean( p_libvlc );
     libvlc_InternalKeystoreClean( p_libvlc );
@@ -400,14 +419,17 @@ void libvlc_InternalCleanup( libvlc_int_t *p_libvlc )
     if (priv->parser != NULL)
         input_preparser_Delete(priv->parser);
 
+    if (priv->main_playlist)
+        vlc_playlist_Delete(priv->main_playlist);
+
     libvlc_InternalActionsClean( p_libvlc );
 
     /* Save the configuration */
     if( !var_InheritBool( p_libvlc, "ignore-config" ) )
         config_AutoSaveConfigFile( VLC_OBJECT(p_libvlc) );
 
+    vlc_LogDestroy(p_libvlc->obj.logger);
     /* Free module bank. It is refcounted, so we call this each time  */
-    vlc_LogDeinit (p_libvlc);
     module_EndBank (true);
 #if defined(_WIN32) || defined(__OS2__)
     system_End( );

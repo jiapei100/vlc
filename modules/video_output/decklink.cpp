@@ -38,16 +38,16 @@
 #include <vlc_threads.h>
 
 #include <vlc_vout_display.h>
-#include <vlc_picture_pool.h>
 
 #include <vlc_block.h>
 #include <vlc_image.h>
 #include <vlc_aout.h>
+
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
 
-#include <DeckLinkAPI.h>
+#include "../access/vlc_decklink.h"
 #include <DeckLinkAPIDispatch.cpp>
 
 #define FRAME_SIZE 1920
@@ -213,7 +213,6 @@ struct decklink_sys_t
     struct
     {
         video_format_t currentfmt;
-        picture_pool_t *pool;
         bool tenbits;
         uint8_t afd, ar;
         int nosignal_delay;
@@ -290,7 +289,7 @@ static vlc_mutex_t sys_lock = VLC_STATIC_MUTEX;
 
 static decklink_sys_t *HoldDLSys(vlc_object_t *obj, int i_cat)
 {
-    vlc_object_t *libvlc = VLC_OBJECT(obj->obj.libvlc);
+    vlc_object_t *libvlc = VLC_OBJECT(vlc_object_instance(obj));
     decklink_sys_t *sys;
 
     vlc_mutex_lock(&sys_lock);
@@ -336,7 +335,7 @@ static decklink_sys_t *HoldDLSys(vlc_object_t *obj, int i_cat)
 
 static void ReleaseDLSys(vlc_object_t *obj, int i_cat)
 {
-    vlc_object_t *libvlc = VLC_OBJECT(obj->obj.libvlc);
+    vlc_object_t *libvlc = VLC_OBJECT(vlc_object_instance(obj));
 
     vlc_mutex_lock(&sys_lock);
 
@@ -355,8 +354,6 @@ static void ReleaseDLSys(vlc_object_t *obj, int i_cat)
         }
 
         /* Clean video specific */
-        if (sys->video.pool)
-            picture_pool_Release(sys->video.pool);
         if (sys->video.pic_nosignal)
             picture_Release(sys->video.pic_nosignal);
         video_format_Clean(&sys->video.currentfmt);
@@ -439,17 +436,16 @@ static picture_t * CreateNoSignalPicture(vlc_object_t *p_this, const video_forma
         return NULL;
     }
 
-    video_format_t in, dummy;
-    video_format_Init(&dummy, 0);
+    video_format_t in;
     video_format_Init(&in, 0);
     video_format_Setup(&in, 0,
                        fmt->i_width, fmt->i_height,
                        fmt->i_width, fmt->i_height, 1, 1);
 
-    picture_t *png = image_ReadUrl(img, psz_file, &dummy, &in);
+    picture_t *png = image_ReadUrl(img, psz_file, &in);
     if (png)
     {
-        video_format_Clean(&dummy);
+        video_format_t dummy;
         video_format_Copy(&dummy, fmt);
         p_pic = image_Convert(img, png, &in, &dummy);
         if(!video_format_IsSimilar(&dummy, fmt))
@@ -458,10 +454,10 @@ static picture_t * CreateNoSignalPicture(vlc_object_t *p_this, const video_forma
             p_pic = NULL;
         }
         picture_Release(png);
+        video_format_Clean(&dummy);
     }
     image_HandlerDelete(img);
     video_format_Clean(&in);
-    video_format_Clean(&dummy);
 
     return p_pic;
 }
@@ -490,22 +486,27 @@ static IDeckLinkDisplayMode * MatchDisplayMode(vout_display_t *vd,
                 BMDDisplayMode mode_id = p_mode->GetDisplayMode();
                 BMDTimeValue frameduration;
                 BMDTimeScale timescale;
-                const char *psz_mode_name;
+                char *psz_mode_name;
 
+                decklink_str_t tmp_name;
                 if(p_mode->GetFrameRate(&frameduration, &timescale) == S_OK &&
-                        p_mode->GetName(&psz_mode_name) == S_OK)
+                        p_mode->GetName(&tmp_name) == S_OK)
                 {
                     BMDDisplayMode modenl = htonl(mode_id);
+                    psz_mode_name = DECKLINK_STRDUP(tmp_name);
+                    DECKLINK_FREE(tmp_name);
+
                     if(i==0)
                     {
                         BMDFieldDominance field = htonl(p_mode->GetFieldDominance());
-                        msg_Dbg(vd, "Found mode '%4.4s': %s (%ldx%ld, %.3f fps, %4.4s, scale %ld dur %ld)",
+                        msg_Dbg(vd, "Found mode '%4.4s': %s (%ldx%ld, %.3f fps, %4.4s, scale %" PRId64 " dur %" PRId64 ")",
                                 (char*)&modenl, psz_mode_name,
                                 p_mode->GetWidth(), p_mode->GetHeight(),
-                                (char *)&field,
                                 double(timescale) / frameduration,
+                                (char *)&field,
                                 timescale, frameduration);
                     }
+                    free(psz_mode_name);
                 }
                 else
                 {
@@ -620,11 +621,15 @@ static int OpenDecklink(vout_display_t *vd, decklink_sys_t *sys)
         CHECK("Card not found");
     }
 
-    const char *psz_model_name;
-    result = p_card->GetModelName(&psz_model_name);
+    decklink_str_t tmp_name;
+    char *psz_model_name;
+    result = p_card->GetModelName(&tmp_name);
     CHECK("Unknown model name");
+    psz_model_name = DECKLINK_STRDUP(tmp_name);
+    DECKLINK_FREE(tmp_name);
 
     msg_Dbg(vd, "Opened DeckLink PCI card %s", psz_model_name);
+    free(psz_model_name);
 
     /* Read attributes */
 
@@ -727,7 +732,7 @@ static int OpenDecklink(vout_display_t *vd, decklink_sys_t *sys)
 
     /* start */
     result = sys->p_output->StartScheduledPlayback(
-        SEC_FROM_VLC_TICK(vlc_tick_now() * sys->timescale), sys->timescale, 1.0);
+        samples_from_vlc_tick(vlc_tick_now(), sys->timescale), sys->timescale, 1.0);
     CHECK("Could not start playback");
 
     p_config->Release();
@@ -765,14 +770,6 @@ error:
 /*****************************************************************************
  * Video
  *****************************************************************************/
-
-static picture_pool_t *PoolVideo(vout_display_t *vd, unsigned requested_count)
-{
-    struct decklink_sys_t *sys = (struct decklink_sys_t *) vd->sys;
-    if (!sys->video.pool)
-        sys->video.pool = picture_pool_NewFromFormat(&vd->fmt, requested_count);
-    return sys->video.pool;
-}
 
 static inline void put_le32(uint8_t **p, uint32_t d)
 {
@@ -1014,11 +1011,6 @@ end:
         pDLVideoFrame->Release();
 }
 
-static void DisplayVideo(vout_display_t *, picture_t *picture, subpicture_t *)
-{
-    picture_Release(picture);
-}
-
 static int ControlVideo(vout_display_t *vd, int query, va_list args)
 {
     (void) vd; (void) query; (void) args;
@@ -1046,7 +1038,6 @@ static int OpenVideo(vlc_object_t *p_this)
         sys->video.afd = var_InheritInteger(p_this, VIDEO_CFG_PREFIX "afd");
         sys->video.ar = var_InheritInteger(p_this, VIDEO_CFG_PREFIX "ar");
         sys->video.pic_nosignal = NULL;
-        sys->video.pool = NULL;
 
         if (OpenDecklink(vd, sys) != VLC_SUCCESS)
         {
@@ -1068,9 +1059,8 @@ static int OpenVideo(vlc_object_t *p_this)
     video_format_Clean( &vd->fmt );
     video_format_Copy( &vd->fmt, &sys->video.currentfmt );
 
-    vd->pool    = PoolVideo;
     vd->prepare = PrepareVideo;
-    vd->display = DisplayVideo;
+    vd->display = NULL;
     vd->control = ControlVideo;
 
     return VLC_SUCCESS;
@@ -1097,7 +1087,7 @@ static void Flush (audio_output_t *aout, bool drain)
     if (drain) {
         uint32_t samples;
         sys->p_output->GetBufferedAudioSampleFrameCount(&samples);
-        vlc_tick_sleep(CLOCK_FREQ * samples / sys->i_rate);
+        vlc_tick_sleep(vlc_tick_from_samples(samples, sys->i_rate));
     } else if (sys->p_output->FlushBufferedAudioSamples() == E_FAIL)
         msg_Err(aout, "Flush failed");
 }

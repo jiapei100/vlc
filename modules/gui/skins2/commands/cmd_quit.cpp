@@ -2,7 +2,6 @@
  * cmd_quit.cpp
  *****************************************************************************
  * Copyright (C) 2003 the VideoLAN team
- * $Id$
  *
  * Authors: Cyril Deguet     <asmax@via.ecp.fr>
  *          Olivier Teulière <ipkiss@via.ecp.fr>
@@ -48,7 +47,7 @@ void CmdQuit::execute()
     }
 
     // Kill libvlc
-    libvlc_Quit( getIntf()->obj.libvlc );
+    libvlc_Quit( vlc_object_instance(getIntf()) );
 }
 
 

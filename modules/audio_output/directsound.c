@@ -2,7 +2,6 @@
  * directsound.c: DirectSound audio output plugin for VLC
  *****************************************************************************
  * Copyright (C) 2001-2009 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Gildas Bazin <gbazin@videolan.org>
  *
@@ -171,7 +170,7 @@ static HRESULT TimeGet( aout_stream_sys_t *sys, vlc_tick_t *delay )
         /* underrun */
         Flush(sys, false);
 
-    *delay = ( sys->i_data / sys->i_bytes_per_sample ) * CLOCK_FREQ / sys->i_rate;
+    *delay = vlc_tick_from_samples( sys->i_data / sys->i_bytes_per_sample, sys->i_rate );
 
     return DS_OK;
 }
@@ -1117,6 +1116,7 @@ static void * PlayedDataEraser( void * data )
     unsigned long l_bytes1, l_bytes2;
     DWORD i_read;
     int64_t toerase, tosleep;
+    vlc_tick_t ticksleep;
     HRESULT dsresult;
 
     for(;;)
@@ -1129,6 +1129,7 @@ static void * PlayedDataEraser( void * data )
 
         toerase = 0;
         tosleep = 0;
+        ticksleep = VLC_TICK_FROM_MS(20);
 
         dsresult = IDirectSoundBuffer_GetCurrentPosition( p_sys->p_dsbuffer,
                                                           &i_read, NULL );
@@ -1141,10 +1142,10 @@ static void * PlayedDataEraser( void * data )
             else
                 tosleep += DS_BUF_SIZE;
             toerase = max;
-            tosleep = ( tosleep / p_sys->i_bytes_per_sample ) * CLOCK_FREQ / p_sys->i_rate;
+            ticksleep = vlc_tick_from_sec( tosleep / p_sys->i_bytes_per_sample ) / p_sys->i_rate;
         }
 
-        tosleep = __MAX( tosleep, VLC_TICK_FROM_MS(20) );
+        ticksleep = __MAX( ticksleep, VLC_TICK_FROM_MS(20) );
         dsresult = IDirectSoundBuffer_Lock( p_sys->p_dsbuffer,
                                             p_sys->i_write,
                                             toerase,
@@ -1176,7 +1177,7 @@ static void * PlayedDataEraser( void * data )
 wait:
         vlc_mutex_unlock(&p_sys->lock);
         vlc_restorecancel(canc);
-        vlc_tick_sleep(tosleep);
+        vlc_tick_sleep(ticksleep);
     }
     return NULL;
 }

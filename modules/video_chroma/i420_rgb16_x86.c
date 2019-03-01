@@ -2,7 +2,6 @@
  * i420_rgb16_x86.c : YUV to bitmap RGB conversion module for vlc
  *****************************************************************************
  * Copyright (C) 2000 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Samuel Hocevar <sam@zoy.org>
  *          Damien Fouilleul <damienf@videolan.org>
@@ -122,7 +121,7 @@ void I420_R5G5B5( filter_t *p_filter, picture_t *p_src, picture_t *p_dest )
     uint16_t *  p_pic_start;       /* beginning of the current line for copy */
 
     /* Conversion buffer pointer */
-    uint16_t *  p_buffer_start = (uint16_t*)p_sys->p_buffer;
+    uint16_t *  p_buffer_start;
     uint16_t *  p_buffer;
 
     /* Offset array pointer */
@@ -147,6 +146,13 @@ void I420_R5G5B5( filter_t *p_filter, picture_t *p_src, picture_t *p_dest )
                (p_filter->fmt_out.video.i_y_offset + p_filter->fmt_out.video.i_visible_height),
                &b_hscale, &i_vscale, p_offset_start );
 
+    if(b_hscale &&
+       AllocateOrGrow(&p_sys->p_buffer, &p_sys->i_buffer_size,
+                      p_filter->fmt_in.video.i_x_offset +
+                      p_filter->fmt_in.video.i_visible_width,
+                      p_sys->i_bytespp))
+        return;
+    else p_buffer_start = (uint16_t*)p_sys->p_buffer;
 
     /*
      * Perform conversion
@@ -356,7 +362,7 @@ void I420_R5G6B5( filter_t *p_filter, picture_t *p_src, picture_t *p_dest )
     uint16_t *  p_pic_start;       /* beginning of the current line for copy */
 
     /* Conversion buffer pointer */
-    uint16_t *  p_buffer_start = (uint16_t*)p_sys->p_buffer;
+    uint16_t *  p_buffer_start;
     uint16_t *  p_buffer;
 
     /* Offset array pointer */
@@ -381,6 +387,13 @@ void I420_R5G6B5( filter_t *p_filter, picture_t *p_src, picture_t *p_dest )
                (p_filter->fmt_out.video.i_y_offset + p_filter->fmt_out.video.i_visible_height),
                &b_hscale, &i_vscale, p_offset_start );
 
+    if(b_hscale &&
+       AllocateOrGrow(&p_sys->p_buffer, &p_sys->i_buffer_size,
+                      p_filter->fmt_in.video.i_x_offset +
+                      p_filter->fmt_in.video.i_visible_width,
+                      p_sys->i_bytespp))
+        return;
+    else p_buffer_start = (uint16_t*)p_sys->p_buffer;
 
     /*
      * Perform conversion
@@ -590,7 +603,7 @@ void I420_A8R8G8B8( filter_t *p_filter, picture_t *p_src,
     int         i_chroma_width = (p_filter->fmt_in.video.i_x_offset + p_filter->fmt_in.video.i_visible_width) / 2; /* chroma width */
     uint32_t *  p_pic_start;       /* beginning of the current line for copy */
     /* Conversion buffer pointer */
-    uint32_t *  p_buffer_start = (uint32_t*)p_sys->p_buffer;
+    uint32_t *  p_buffer_start;
     uint32_t *  p_buffer;
 
     /* Offset array pointer */
@@ -614,6 +627,14 @@ void I420_A8R8G8B8( filter_t *p_filter, picture_t *p_src,
                (p_filter->fmt_out.video.i_x_offset + p_filter->fmt_out.video.i_visible_width),
                (p_filter->fmt_out.video.i_y_offset + p_filter->fmt_out.video.i_visible_height),
                &b_hscale, &i_vscale, p_offset_start );
+
+    if(b_hscale &&
+       AllocateOrGrow(&p_sys->p_buffer, &p_sys->i_buffer_size,
+                      p_filter->fmt_in.video.i_x_offset +
+                      p_filter->fmt_in.video.i_visible_width,
+                      p_sys->i_bytespp))
+        return;
+    else p_buffer_start = (uint32_t*)p_sys->p_buffer;
 
     /*
      * Perform conversion
@@ -822,7 +843,7 @@ void I420_R8G8B8A8( filter_t *p_filter, picture_t *p_src, picture_t *p_dest )
     int         i_chroma_width = (p_filter->fmt_in.video.i_x_offset + p_filter->fmt_in.video.i_visible_width) / 2; /* chroma width */
     uint32_t *  p_pic_start;       /* beginning of the current line for copy */
     /* Conversion buffer pointer */
-    uint32_t *  p_buffer_start = (uint32_t*)p_sys->p_buffer;
+    uint32_t *  p_buffer_start;
     uint32_t *  p_buffer;
 
     /* Offset array pointer */
@@ -846,6 +867,14 @@ void I420_R8G8B8A8( filter_t *p_filter, picture_t *p_src, picture_t *p_dest )
                (p_filter->fmt_out.video.i_x_offset + p_filter->fmt_out.video.i_visible_width),
                (p_filter->fmt_out.video.i_y_offset + p_filter->fmt_out.video.i_visible_height),
                &b_hscale, &i_vscale, p_offset_start );
+
+    if(b_hscale &&
+       AllocateOrGrow(&p_sys->p_buffer, &p_sys->i_buffer_size,
+                      p_filter->fmt_in.video.i_x_offset +
+                      p_filter->fmt_in.video.i_visible_width,
+                      p_sys->i_bytespp))
+        return;
+    else p_buffer_start = (uint32_t*)p_sys->p_buffer;
 
     /*
      * Perform conversion
@@ -1054,7 +1083,7 @@ void I420_B8G8R8A8( filter_t *p_filter, picture_t *p_src, picture_t *p_dest )
     int         i_chroma_width = (p_filter->fmt_in.video.i_x_offset + p_filter->fmt_in.video.i_visible_width) / 2; /* chroma width */
     uint32_t *  p_pic_start;       /* beginning of the current line for copy */
     /* Conversion buffer pointer */
-    uint32_t *  p_buffer_start = (uint32_t*)p_sys->p_buffer;
+    uint32_t *  p_buffer_start;
     uint32_t *  p_buffer;
 
     /* Offset array pointer */
@@ -1078,6 +1107,14 @@ void I420_B8G8R8A8( filter_t *p_filter, picture_t *p_src, picture_t *p_dest )
                (p_filter->fmt_out.video.i_x_offset + p_filter->fmt_out.video.i_visible_width),
                (p_filter->fmt_out.video.i_y_offset + p_filter->fmt_out.video.i_visible_height),
                &b_hscale, &i_vscale, p_offset_start );
+
+    if(b_hscale &&
+       AllocateOrGrow(&p_sys->p_buffer, &p_sys->i_buffer_size,
+                      p_filter->fmt_in.video.i_x_offset +
+                      p_filter->fmt_in.video.i_visible_width,
+                      p_sys->i_bytespp))
+        return;
+    else p_buffer_start = (uint32_t*)p_sys->p_buffer;
 
     /*
      * Perform conversion
@@ -1283,7 +1320,7 @@ void I420_A8B8G8R8( filter_t *p_filter, picture_t *p_src, picture_t *p_dest )
     int         i_chroma_width = (p_filter->fmt_in.video.i_x_offset + p_filter->fmt_in.video.i_visible_width) / 2; /* chroma width */
     uint32_t *  p_pic_start;       /* beginning of the current line for copy */
     /* Conversion buffer pointer */
-    uint32_t *  p_buffer_start = (uint32_t*)p_sys->p_buffer;
+    uint32_t *  p_buffer_start;
     uint32_t *  p_buffer;
 
     /* Offset array pointer */
@@ -1307,6 +1344,14 @@ void I420_A8B8G8R8( filter_t *p_filter, picture_t *p_src, picture_t *p_dest )
                (p_filter->fmt_out.video.i_x_offset + p_filter->fmt_out.video.i_visible_width),
                (p_filter->fmt_out.video.i_y_offset + p_filter->fmt_out.video.i_visible_height),
                &b_hscale, &i_vscale, p_offset_start );
+
+    if(b_hscale &&
+       AllocateOrGrow(&p_sys->p_buffer, &p_sys->i_buffer_size,
+                      p_filter->fmt_in.video.i_x_offset +
+                      p_filter->fmt_in.video.i_visible_width,
+                      p_sys->i_bytespp))
+        return;
+    else p_buffer_start = (uint32_t*)p_sys->p_buffer;
 
     /*
      * Perform conversion

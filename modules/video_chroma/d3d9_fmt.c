@@ -92,7 +92,7 @@ HRESULT D3D9_CreateDevice(vlc_object_t *o, d3d9_handle_t *hd3d, HWND hwnd,
     if (FAILED(IDirect3D9_GetAdapterIdentifier(hd3d->obj, AdapterToUse,0, &d3dai))) {
         msg_Warn(o, "IDirect3D9_GetAdapterIdentifier failed");
     } else {
-        msg_Dbg(o, "Direct3d9 Device: %s %lu %lu %lu", d3dai.Description,
+        msg_Dbg(o, "Direct3d9 Device: %s %lx %lx %lx", d3dai.Description,
                 d3dai.VendorId, d3dai.DeviceId, d3dai.Revision );
     }
 
@@ -128,6 +128,29 @@ HRESULT D3D9_CreateDevice(vlc_object_t *o, d3d9_handle_t *hd3d, HWND hwnd,
     msg_Err(o, "failed to create the D3D9%s device %d/%d. (hr=0x%lX)",
                hd3d->use_ex?"Ex":"", AdapterToUse, DeviceType, hr);
     return hr;
+}
+
+HRESULT D3D9_CreateDeviceExternal(IDirect3DDevice9 *dev, d3d9_handle_t *hd3d, HWND hwnd,
+                                  const video_format_t *source, d3d9_device_t *out)
+{
+    D3DDEVICE_CREATION_PARAMETERS params;
+    HRESULT hr = IDirect3DDevice9_GetCreationParameters(dev, &params);
+    if (FAILED(hr))
+       return hr;
+    out->dev   = dev;
+    out->owner = false;
+    out->hwnd  = hwnd;
+    out->adapterId = params.AdapterOrdinal;
+    ZeroMemory(&out->caps, sizeof(out->caps));
+    hr = IDirect3D9_GetDeviceCaps(hd3d->obj, out->adapterId, params.DeviceType, &out->caps);
+    if (FAILED(hr))
+       return hr;
+    if (D3D9_FillPresentationParameters(hd3d, source, out))
+    {
+        return E_FAIL;
+    }
+    IDirect3DDevice9_AddRef(out->dev);
+    return S_OK;
 }
 
 void D3D9_ReleaseDevice(d3d9_device_t *d3d_dev)
@@ -214,7 +237,7 @@ int D3D9_Create(vlc_object_t *o, d3d9_handle_t *hd3d)
         return VLC_EGENERIC;
     }
 
-    LPDIRECT3D9 (WINAPI *OurDirect3DCreate9)(UINT SDKVersion);
+    IDirect3D9 *(WINAPI *OurDirect3DCreate9)(UINT SDKVersion);
     OurDirect3DCreate9 =
         (void *)GetProcAddress(hd3d->hdll, "Direct3DCreate9");
     if (!OurDirect3DCreate9) {
@@ -248,4 +271,15 @@ int D3D9_Create(vlc_object_t *o, d3d9_handle_t *hd3d)
 error:
     D3D9_Destroy( hd3d );
     return VLC_EGENERIC;
+}
+
+#undef D3D9_CreateExternal
+int D3D9_CreateExternal(vlc_object_t *o, d3d9_handle_t *hd3d, IDirect3DDevice9 *d3d9dev)
+{
+    HRESULT hr = IDirect3DDevice9_GetDirect3D(d3d9dev, &hd3d->obj);
+    if (FAILED(hr))
+        return VLC_EGENERIC;
+    hd3d->hdll = NULL;
+    hd3d->use_ex = false; /* we don't care */
+    return VLC_SUCCESS;
 }

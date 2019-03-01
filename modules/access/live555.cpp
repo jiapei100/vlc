@@ -2,7 +2,6 @@
  * live555.cpp : LIVE555 Streaming Media support.
  *****************************************************************************
  * Copyright (C) 2003-2007 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Derk-Jan Hartman <hartman at videolan. org>
@@ -177,8 +176,8 @@ typedef struct
     bool            b_flushing_discontinuity;
     int             i_next_block_flags;
     char            waiting;
-    int64_t         i_prevpts;
-    int64_t         i_pcr;
+    vlc_tick_t      i_prevpts;
+    vlc_tick_t      i_pcr;
     double          f_npt;
 
     struct dtsgen_t dtsgen;
@@ -1518,7 +1517,6 @@ static int Demux( demux_t *p_demux )
 static int Control( demux_t *p_demux, int i_query, va_list args )
 {
     demux_sys_t *p_sys = (demux_sys_t *)p_demux->p_sys;
-    int64_t *pi64, i64;
     double  *pf, f;
     bool *pb;
 
@@ -1527,23 +1525,20 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
     switch( i_query )
     {
         case DEMUX_GET_TIME:
-            pi64 = va_arg( args, int64_t * );
             if( p_sys->f_npt > 0 )
             {
-                *pi64 = vlc_tick_from_sec(p_sys->f_npt);
+                *va_arg( args, vlc_tick_t * ) = vlc_tick_from_sec(p_sys->f_npt);
                 return VLC_SUCCESS;
             }
             return VLC_EGENERIC;
 
         case DEMUX_GET_LENGTH:
-            pi64 = va_arg( args, int64_t * );
             if( p_sys->f_npt_length > 0 )
             {
-                double d_length = p_sys->f_npt_length * (double)CLOCK_FREQ;
-                if( d_length >= INT64_MAX )
-                    *pi64 = INT64_MAX;
+                if( unlikely(p_sys->f_npt_length >= (double)(INT64_MAX / CLOCK_FREQ)) )
+                    *va_arg( args, vlc_tick_t * ) = INT64_MAX;
                 else
-                    *pi64 = (int64_t)d_length;
+                    *va_arg( args, vlc_tick_t * ) = vlc_tick_from_sec(p_sys->f_npt_length);
                 return VLC_SUCCESS;
             }
             return VLC_EGENERIC;
@@ -1565,8 +1560,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
                 if( (i_query == DEMUX_SET_TIME) && (p_sys->f_npt > 0) )
                 {
-                    i64 = va_arg( args, int64_t );
-                    time = (float)(i64 / 1000000.0); /* in second */
+                    time = secf_from_vlc_tick(va_arg( args, vlc_tick_t )); /* in second */
                 }
                 else if( i_query == DEMUX_SET_TIME )
                     return VLC_EGENERIC;
@@ -1653,8 +1647,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         case DEMUX_SET_RATE:
         {
-            int *pi_int;
-            double f_scale, f_old_scale;
+            float *pf_scale, f_scale;
+            double f_old_scale;
 
             if( !p_sys->rtsp || (p_sys->f_npt_length <= 0) ||
                 !(p_sys->capabilities & CAP_RATE_CONTROL) )
@@ -1674,8 +1668,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
              * Scale < 0 value indicates rewind
              */
 
-            pi_int = va_arg( args, int * );
-            f_scale = (double)INPUT_RATE_DEFAULT / (*pi_int);
+            pf_scale = va_arg( args, float * );
+            f_scale = *pf_scale;
             f_old_scale = p_sys->ms->scale();
 
             /* Passing -1 for the start and end time will mean liveMedia won't
@@ -1702,8 +1696,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             p_sys->i_pcr = VLC_TICK_INVALID;
             p_sys->f_npt = 0.0;
 
-            *pi_int = (int)( INPUT_RATE_DEFAULT / p_sys->ms->scale() );
-            msg_Dbg( p_demux, "PLAY with new Scale %0.2f (%d)", p_sys->ms->scale(), (*pi_int) );
+            *pf_scale = p_sys->ms->scale() ;
+            msg_Dbg( p_demux, "PLAY with new Scale %0.2f", p_sys->ms->scale() );
             return VLC_SUCCESS;
         }
 

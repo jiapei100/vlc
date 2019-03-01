@@ -3,7 +3,6 @@
  * mkv.cpp : matroska demuxer
  *****************************************************************************
  * Copyright (C) 2003-2004 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Steve Lhomme <steve.lhomme@free.fr>
@@ -302,7 +301,7 @@ bool demux_sys_t::PreparePlayback( virtual_segment_c & new_vsegment, vlc_tick_t 
     if( !p_current_vsegment->CurrentSegment()->b_cues )
         msg_Warn( &p_current_vsegment->CurrentSegment()->sys.demuxer, "no cues/empty cues found->seek won't be precise" );
 
-    f_duration = p_current_vsegment->Duration();
+    i_duration = p_current_vsegment->Duration();
 
     /* add information */
     p_current_vsegment->CurrentSegment()->InformationCreate( );

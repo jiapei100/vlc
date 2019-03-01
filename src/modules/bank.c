@@ -146,7 +146,7 @@ error:
  */
 static void vlc_plugin_store(vlc_plugin_t *lib)
 {
-    /*vlc_assert_locked (&modules.lock);*/
+    vlc_mutex_assert(&modules.lock);
 
     lib->next = vlc_plugins;
     vlc_plugins = lib;
@@ -474,7 +474,11 @@ static void AllocateAllPlugins (vlc_object_t *p_this)
     if( paths == NULL )
         return;
 
+#ifdef _WIN32
+    paths = realpath( paths, NULL );
+#else
     paths = strdup( paths ); /* don't harm the environment ! :) */
+#endif
     if( unlikely(paths == NULL) )
         return;
 
@@ -619,8 +623,8 @@ void module_EndBank (bool b_plugins)
      * from module_InitBank(). */
     if( b_plugins )
         vlc_mutex_lock (&modules.lock);
-    /*else
-        vlc_assert_locked (&modules.lock); not for static mutexes :( */
+    else
+        vlc_mutex_assert(&modules.lock);
 
     assert (modules.usage > 0);
     if (--modules.usage == 0)
@@ -658,7 +662,7 @@ void module_EndBank (bool b_plugins)
  */
 void module_LoadPlugins(vlc_object_t *obj)
 {
-    /*vlc_assert_locked (&modules.lock); not for static mutexes :( */
+    /*vlc_mutex_assert (&modules.lock); not for static mutexes :( */
 
     if (modules.usage == 1)
     {

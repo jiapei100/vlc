@@ -28,6 +28,7 @@
 
 #import <vlc_plugin.h>
 #import <vlc_dialog.h>                      // vlc_dialog_display_error
+#import <vlc_charset.h>                     // FromCFString
 
 #import <CoreAudio/CoreAudio.h>             // AudioDeviceID
 #import <CoreServices/CoreServices.h>
@@ -505,16 +506,7 @@ RebuildDeviceList(audio_output_t * p_aout, UInt32 *p_id_exists)
             continue;
         }
 
-        length = CFStringGetLength(device_name_ref);
-        length++;
-        psz_name = malloc(length);
-        if (!psz_name)
-        {
-            CFRelease(device_name_ref);
-            return;
-        }
-        CFStringGetCString(device_name_ref, psz_name, length,
-                           kCFStringEncodingUTF8);
+        psz_name = FromCFString(device_name_ref, kCFStringEncodingUTF8);
         CFRelease(device_name_ref);
 
         msg_Dbg(p_aout, "DevID: %i DevName: %s", i_id, psz_name);
@@ -1609,7 +1601,7 @@ Start(audio_output_t *p_aout, audio_sample_format_t *restrict fmt)
     UInt32 i_latency_samples;
     AO_GET1PROP(p_sys->i_selected_dev, UInt32, &i_latency_samples,
                 kAudioDevicePropertyLatency, kAudioObjectPropertyScopeOutput);
-    vlc_tick_t i_latency_us = i_latency_samples * CLOCK_FREQ / fmt->i_rate;
+    vlc_tick_t i_latency_us = vlc_tick_from_samples(i_latency_samples, fmt->i_rate);
 
     /* Check for Digital mode or Analog output mode */
     if (do_spdif)

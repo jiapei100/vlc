@@ -3,7 +3,6 @@
  *****************************************************************************
  * Copyright (C) 2003-2005 VLC authors and VideoLAN
  * Copyright © 2005-2010 Rémi Denis-Courmont
- * $Id$
  *
  * Author: Rémi Denis-Courmont <rem # videolan,org>
  *
@@ -144,6 +143,50 @@ VLC_API char * vlc_strcasestr(const char *, const char *) VLC_USED;
 
 VLC_API char * FromCharset( const char *charset, const void *data, size_t data_size ) VLC_USED;
 VLC_API void * ToCharset( const char *charset, const char *in, size_t *outsize ) VLC_USED;
+
+#ifdef __APPLE__
+# include <CoreFoundation/CoreFoundation.h>
+
+/* Obtains a copy of the contents of a CFString in specified encoding.
+ * Returns char* (must be freed by caller) or NULL on failure.
+ */
+VLC_USED static inline char *FromCFString(const CFStringRef cfString,
+    const CFStringEncoding cfStringEncoding)
+{
+    // Try the quick way to obtain the buffer
+    const char *tmpBuffer = CFStringGetCStringPtr(cfString, cfStringEncoding);
+
+    if (tmpBuffer != NULL) {
+       return strdup(tmpBuffer);
+    }
+
+    // The quick way did not work, try the long way
+    CFIndex length = CFStringGetLength(cfString);
+    CFIndex maxSize =
+        CFStringGetMaximumSizeForEncoding(length, cfStringEncoding);
+
+    // If result would exceed LONG_MAX, kCFNotFound is returned
+    if (unlikely(maxSize == kCFNotFound)) {
+        return NULL;
+    }
+
+    // Account for the null terminator
+    maxSize++;
+
+    char *buffer = (char *)malloc(maxSize);
+
+    if (unlikely(buffer == NULL)) {
+        return NULL;
+    }
+
+    // Copy CFString in requested encoding to buffer
+    Boolean success = CFStringGetCString(cfString, buffer, maxSize, cfStringEncoding);
+
+    if (!success)
+        FREENULL(buffer);
+    return buffer;
+}
+#endif
 
 #ifdef _WIN32
 VLC_USED

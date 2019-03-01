@@ -2,7 +2,6 @@
  * nsv.c: NullSoft Video demuxer.
  *****************************************************************************
  * Copyright (C) 2004-2007 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *
@@ -69,9 +68,9 @@ typedef struct
     es_format_t  fmt_sub;
     es_out_id_t  *p_sub;
 
-    int64_t     i_pcr;
-    int64_t     i_time;
-    int64_t     i_pcr_inc;
+    vlc_tick_t  i_pcr;
+    vlc_tick_t  i_time;
+    vlc_tick_t  i_pcr_inc;
 
     bool b_start_record;
 } demux_sys_t;
@@ -348,7 +347,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
     demux_sys_t *p_sys = p_demux->p_sys;
     double f, *pf;
     bool b_bool, *pb_bool;
-    int64_t i64, *pi64;
+    int64_t i64;
 
     switch( i_query )
     {
@@ -380,30 +379,28 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_SUCCESS;
 
         case DEMUX_GET_TIME:
-            pi64 = va_arg( args, int64_t * );
             if( p_sys->i_time < 0 )
             {
-                *pi64 = 0;
+                *va_arg( args, vlc_tick_t * ) = 0;
                 return VLC_EGENERIC;
             }
-            *pi64 = p_sys->i_time;
+            *va_arg( args, vlc_tick_t * ) = p_sys->i_time;
             return VLC_SUCCESS;
 
 #if 0
         case DEMUX_GET_LENGTH:
-            pi64 = va_arg( args, int64_t * );
             if( p_sys->i_mux_rate > 0 )
             {
-                *pi64 = CLOCK_FREQ * ( stream_Size( p_demux->s ) / 50 ) / p_sys->i_mux_rate;
+                *va_arg( args, vlc_tick_t * ) = vlc_tick_from_samples( stream_Size( p_demux->s ) / 50, p_sys->i_mux_rate);
                 return VLC_SUCCESS;
             }
-            *pi64 = 0;
+            *va_arg( args, vlc_tick_t * ) = 0;
             return VLC_EGENERIC;
 
 #endif
         case DEMUX_GET_FPS:
             pf = va_arg( args, double * );
-            *pf = (double)1000000.0 / (double)p_sys->i_pcr_inc;
+            *pf = (double)CLOCK_FREQ / (double)p_sys->i_pcr_inc;
             return VLC_SUCCESS;
 
         case DEMUX_CAN_RECORD:
@@ -615,12 +612,12 @@ static int ReadNSVs( demux_t *p_demux )
     else if( header[16] != 0 )
     {
         /* Integer frame rate */
-        p_sys->i_pcr_inc = 1000000 / header[16];
+        p_sys->i_pcr_inc = vlc_tick_from_samples(1, header[16]);
     }
     else
     {
         msg_Dbg( p_demux, "invalid fps (0x00)" );
-        p_sys->i_pcr_inc = 40000;
+        p_sys->i_pcr_inc = VLC_TICK_FROM_MS(40);
     }
     //msg_Dbg( p_demux, "    - fps=%.3f", 1000000.0 / (double)p_sys->i_pcr_inc );
 

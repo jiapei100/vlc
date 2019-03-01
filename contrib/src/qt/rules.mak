@@ -1,7 +1,10 @@
 # Qt
 
-QT_VERSION := 5.11.0
-QT_URL := https://download.qt.io/official_releases/qt/5.11/$(QT_VERSION)/submodules/qtbase-everywhere-src-$(QT_VERSION).tar.xz
+QT_VERSION_MAJOR := 5.11
+QT_VERSION := $(QT_VERSION_MAJOR).0
+# Insert potential -betaX suffix here:
+QT_VERSION_FULL := $(QT_VERSION)
+QT_URL := https://download.qt.io/official_releases/qt/$(QT_VERSION_MAJOR)/$(QT_VERSION_FULL)/submodules/qtbase-everywhere-src-$(QT_VERSION_FULL).tar.xz
 
 ifdef HAVE_MACOSX
 #PKGS += qt
@@ -14,25 +17,35 @@ ifeq ($(call need_pkg,"Qt5Core Qt5Gui Qt5Widgets"),)
 PKGS_FOUND += qt
 endif
 
-$(TARBALLS)/qt-$(QT_VERSION).tar.xz:
+$(TARBALLS)/qt-$(QT_VERSION_FULL).tar.xz:
 	$(call download,$(QT_URL))
 
-.sum-qt: qt-$(QT_VERSION).tar.xz
+.sum-qt: qt-$(QT_VERSION_FULL).tar.xz
 
-qt: qt-$(QT_VERSION).tar.xz .sum-qt
+qt: qt-$(QT_VERSION_FULL).tar.xz .sum-qt
 	$(UNPACK)
-	mv qtbase-everywhere-src-$(QT_VERSION) qt-$(QT_VERSION)
+	mv qtbase-everywhere-src-$(QT_VERSION_FULL) qt-$(QT_VERSION_FULL)
 ifdef HAVE_WIN32
 	$(APPLY) $(SRC)/qt/0001-Windows-QPA-prefer-lower-value-when-rounding-fractio.patch
 	$(APPLY) $(SRC)/qt/0002-Windows-QPA-Disable-systray-notification-sounds.patch
+	$(APPLY) $(SRC)/qt/0003-configure-Treat-win32-clang-g-the-same-as-win32-g.patch
+	$(APPLY) $(SRC)/qt/0004-qmake-Fix-building-with-lld-with-mingw-makefiles.patch
+	$(APPLY) $(SRC)/qt/0005-qsimd-Fix-compilation-with-trunk-clang-for-mingw.patch
 ifndef HAVE_WIN64
 	$(APPLY) $(SRC)/qt/0001-disable-qt_random_cpu.patch
+endif
+	$(APPLY) $(SRC)/qt/fix-glibc-2.28-build.patch
+ifndef HAVE_CROSS_COMPILE
+	cd qt-$(QT_VERSION_FULL); for i in QtFontDatabaseSupport QtWindowsUIAutomationSupport QtEventDispatcherSupport QtCore; do \
+		sed -i -e 's,"../../../../../src,"../src,g' include/$$i/$(QT_VERSION)/$$i/private/*.h; done
 endif
 endif
 	$(MOVE)
 
+QT_OPENGL := -opengl desktop
+
 ifdef HAVE_MACOSX
-QT_PLATFORM := -platform darwin-g++
+QT_SPEC := darwin-g++
 endif
 ifdef HAVE_WIN32
 ifdef HAVE_CLANG
@@ -43,13 +56,19 @@ endif
 ifdef HAVE_CROSS_COMPILE
 QT_PLATFORM := -xplatform $(QT_SPEC) -device-option CROSS_COMPILE=$(HOST)-
 else
+ifneq ($(QT_SPEC),)
 QT_PLATFORM := -platform $(QT_SPEC)
+endif
+endif
+ifneq ($(findstring $(ARCH), arm aarch64),)
+# There is no opengl available on windows on these architectures.
+QT_OPENGL := -no-opengl
 endif
 endif
 
 QT_CONFIG := -static -opensource -confirm-license -no-pkg-config \
-	-no-sql-sqlite -no-gif -qt-libjpeg -no-openssl -opengl desktop -no-dbus \
-	-no-sql-odbc -no-pch \
+	-no-sql-sqlite -no-gif -qt-libjpeg -no-openssl $(QT_OPENGL) -no-dbus \
+	-no-vulkan -no-sql-odbc -no-pch \
 	-no-compile-examples -nomake examples -qt-zlib
 
 QT_CONFIG += -release
@@ -82,14 +101,6 @@ ifdef HAVE_WIN32
 	# Fix Qt5Widget.pc file to include qwindowsvistastyle before Qt5Widget, as it depends on it
 	cd $(PREFIX)/lib/pkgconfig; sed -i.orig -e 's/ -lQt5Widget/ -lqwindowsvistastyle -lQt5Widget/' Qt5Widgets.pc
 endif
-ifdef HAVE_CROSS_COMPILE
-	# Building Qt build tools for Xcompilation
-	cd $</include/QtCore; ln -sf $(QT_VERSION)/QtCore/private
-	cd $<; $(MAKE) -C qmake
+	# Install a qmake with correct paths set
 	cd $<; $(MAKE) sub-qmake-qmake-aux-pro-install_subtargets install_mkspecs
-	cd $</src/tools; \
-	for i in bootstrap uic rcc moc; \
-		do (cd $$i; echo $$i && ../../../bin/qmake -spec $(QT_SPEC) QMAKE_RC=$(HOST)-windres && $(MAKE) clean && $(MAKE) CC=$(HOST)-gcc CXX=$(HOST)-g++ LINKER=$(HOST)-g++ LIB="$(HOST)-ar -rc" && $(MAKE) install); \
-	done
-endif
 	touch $@

@@ -2,7 +2,6 @@
  * svcdsub.c : Overlay Graphics Text (SVCD subtitles) decoder
  *****************************************************************************
  * Copyright (C) 2003, 2004 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Rocky Bernstein
  *          Gildas Bazin <gbazin@videolan.org>
@@ -35,6 +34,8 @@
 #include <vlc_plugin.h>
 #include <vlc_codec.h>
 #include <vlc_bits.h>
+
+#include "../demux/mpeg/timestamps.h"
 
 /*****************************************************************************
  * Module descriptor.
@@ -70,8 +71,6 @@ static subpicture_t *DecodePacket( decoder_t *, block_t * );
 static void SVCDSubRenderImage( decoder_t *, block_t *, subpicture_region_t * );
 
 #define GETINT16(p) GetWBE(p)  ; p +=2;
-
-#define GETINT32(p) GetDWBE(p) ; p += 4;
 
 typedef enum  {
   SUBTITLE_BLOCK_EMPTY    = 0,
@@ -201,7 +200,7 @@ static block_t *Packetize( decoder_t *p_dec, block_t **pp_block )
     if( !(p_spu = Reassemble( p_dec, p_block )) ) return NULL;
 
     p_spu->i_dts = p_spu->i_pts;
-    p_spu->i_length = 0;
+    p_spu->i_length = VLC_TICK_INVALID;
 
     return p_spu;
 }
@@ -375,9 +374,8 @@ static void ParseHeader( decoder_t *p_dec, block_t *p_block )
     // Skip over unused value
     p++;
 
-    if( i_options & 0x08 ) { p_sys->i_duration = GETINT32(p); }
+    if( i_options & 0x08 ) { p_sys->i_duration = FROM_SCALE_NZ(GetDWBE(p)); p += 4; }
     else p_sys->i_duration = 0; /* Ephemer subtitle */
-    p_sys->i_duration *= 100 / 9;
 
     p_sys->i_x_start = GETINT16(p);
     p_sys->i_y_start = GETINT16(p);

@@ -2,7 +2,6 @@
  * vc1.c
  *****************************************************************************
  * Copyright (C) 2001, 2002, 2006 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Gildas Bazin <gbazin@videolan.org>
@@ -215,6 +214,10 @@ static void Close( vlc_object_t *p_this )
     packetizer_Clean( &p_sys->packetizer );
     if( p_sys->p_frame )
         block_Release( p_sys->p_frame );
+    if( p_sys->sh.p_sh )
+        block_Release( p_sys->sh.p_sh );
+    if( p_sys->ep.p_ep )
+        block_Release( p_sys->ep.p_ep );
 
     cc_Exit( &p_sys->cc_next );
     cc_Exit( &p_sys->cc );
@@ -385,9 +388,9 @@ static block_t *ParseIDU( decoder_t *p_dec, bool *pb_ts_used, block_t *p_frag )
         if( p_dec->fmt_out.video.i_frame_rate != 0 && p_dec->fmt_out.video.i_frame_rate_base != 0 )
         {
             if( p_sys->i_interpolated_dts != VLC_TICK_INVALID )
-                p_sys->i_interpolated_dts += CLOCK_FREQ *
-                                             p_dec->fmt_out.video.i_frame_rate_base /
-                                             p_dec->fmt_out.video.i_frame_rate;
+                p_sys->i_interpolated_dts += vlc_tick_from_samples(
+                                             p_dec->fmt_out.video.i_frame_rate_base,
+                                             p_dec->fmt_out.video.i_frame_rate);
 
             //msg_Dbg( p_dec, "-------------- XXX0 dts=%"PRId64" pts=%"PRId64" interpolated=%"PRId64,
             //         p_pic->i_dts, p_pic->i_pts, p_sys->i_interpolated_dts );

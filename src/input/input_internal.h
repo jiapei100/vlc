@@ -2,7 +2,6 @@
  * input_internal.h: Internal input structures
  *****************************************************************************
  * Copyright (C) 1998-2006 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *
@@ -46,8 +45,6 @@ struct input_stats;
 /* input_source_t: gathers all information per input source */
 typedef struct
 {
-    struct vlc_common_members obj;
-
     demux_t  *p_demux; /**< Demux object (most downstream) */
 
     /* Title infos for that input */
@@ -71,6 +68,10 @@ typedef struct
     bool b_rescale_ts;
     double f_fps;
 
+    /* sub-fps handling */
+    bool b_slave_sub;
+    float sub_rate;
+
     /* */
     vlc_tick_t i_pts_delay;
 
@@ -82,6 +83,7 @@ typedef union
 {
     vlc_value_t val;
     vlc_viewpoint_t viewpoint;
+    vlc_es_id_t *id;
     struct {
         bool b_fast_seek;
         vlc_tick_t i_val;
@@ -90,6 +92,18 @@ typedef union
         bool b_fast_seek;
         float f_val;
     } pos;
+    struct {
+        bool b_absolute;
+        vlc_tick_t i_val;
+    } delay;
+    struct {
+        vlc_es_id_t *id;
+        unsigned page;
+    } vbi_page;
+    struct {
+        vlc_es_id_t *id;
+        bool enabled;
+    } vbi_transparency;
 } input_control_param_t;
 
 typedef struct
@@ -117,12 +131,17 @@ typedef struct input_thread_private_t
     bool        is_running;
     bool        is_stopped;
     bool        b_recording;
-    int         i_rate;
+    bool        b_thumbnailing;
+    float       rate;
 
     /* Playtime configuration and state */
     vlc_tick_t  i_start;    /* :start-time,0 by default */
     vlc_tick_t  i_stop;     /* :stop-time, 0 if none */
     vlc_tick_t  i_time;     /* Current time */
+
+    /* Delays */
+    vlc_tick_t  i_audio_delay;
+    vlc_tick_t  i_spu_delay;
 
     /* Output */
     bool            b_out_pace_control; /* XXX Move it ot es_sout ? */
@@ -135,7 +154,7 @@ typedef struct input_thread_private_t
 
     /* Title infos FIXME multi-input (not easy) ? */
     int          i_title;
-    const input_title_t **title;
+    input_title_t *const *title;
 
     int i_title_offset;
     int i_seekpoint_offset;
@@ -160,6 +179,7 @@ typedef struct input_thread_private_t
     /* Slave sources (subs, and others) */
     int            i_slave;
     input_source_t **slave;
+    float          slave_subs_rate;
 
     /* Last ES added */
     enum es_format_category_e i_last_es_cat;
@@ -175,7 +195,7 @@ typedef struct input_thread_private_t
     /* Buffer of pending actions */
     vlc_mutex_t lock_control;
     vlc_cond_t  wait_control;
-    int i_control;
+    size_t i_control;
     input_control_t control[INPUT_CONTROL_FIFO_SIZE];
 
     vlc_thread_t thread;
@@ -197,8 +217,10 @@ enum input_control_e
     INPUT_CONTROL_SET_RATE,
 
     INPUT_CONTROL_SET_POSITION,
+    INPUT_CONTROL_JUMP_POSITION,
 
     INPUT_CONTROL_SET_TIME,
+    INPUT_CONTROL_JUMP_TIME,
 
     INPUT_CONTROL_SET_PROGRAM,
 
@@ -220,7 +242,11 @@ enum input_control_e
     INPUT_CONTROL_NAV_POPUP,
     INPUT_CONTROL_NAV_MENU,
 
+    INPUT_CONTROL_SET_ES_BY_ID,
+    INPUT_CONTROL_RESTART_ES_BY_ID,
+
     INPUT_CONTROL_SET_ES,
+    INPUT_CONTROL_UNSET_ES,
     INPUT_CONTROL_RESTART_ES,
 
     INPUT_CONTROL_SET_VIEWPOINT,    // new absolute viewpoint
@@ -231,17 +257,21 @@ enum input_control_e
     INPUT_CONTROL_SET_SPU_DELAY,
 
     INPUT_CONTROL_ADD_SLAVE,
+    INPUT_CONTROL_SET_SUBS_FPS,
 
     INPUT_CONTROL_SET_RECORD_STATE,
 
     INPUT_CONTROL_SET_FRAME_NEXT,
 
     INPUT_CONTROL_SET_RENDERER,
+
+    INPUT_CONTROL_SET_VBI_PAGE,
+    INPUT_CONTROL_SET_VBI_TRANSPARENCY,
 };
 
 /* Internal helpers */
 
-void input_ControlPush( input_thread_t *, int, input_control_param_t * );
+void input_ControlPush( input_thread_t *, int, const input_control_param_t * );
 
 /* XXX for string value you have to allocate it before calling
  * input_ControlPushHelper
@@ -259,7 +289,21 @@ static inline void input_ControlPushHelper( input_thread_t *p_input, int i_type,
     }
 }
 
+static inline void input_ControlPushEsHelper( input_thread_t *p_input, int i_type,
+                                              vlc_es_id_t *id )
+{
+    assert( i_type == INPUT_CONTROL_SET_ES || i_type == INPUT_CONTROL_UNSET_ES ||
+            i_type == INPUT_CONTROL_RESTART_ES );
+    input_ControlPush( p_input, i_type, &(input_control_param_t) {
+        .id = vlc_es_id_Hold( id ),
+    } );
+}
+
 bool input_Stopped( input_thread_t * );
+
+int input_GetAttachments(input_thread_t *input, input_attachment_t ***attachments);
+
+input_attachment_t *input_GetAttachment(input_thread_t *input, const char *name);
 
 /* Bound pts_delay */
 #define INPUT_PTS_DELAY_MAX VLC_TICK_FROM_SEC(60)

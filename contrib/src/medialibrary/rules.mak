@@ -1,4 +1,4 @@
-MEDIALIBRARY_HASH := 82ffd7ac6c0f42da021b6a645052f422e787a19b
+MEDIALIBRARY_HASH := 31e04efbaa79a34c940eedf7880c6b3bb3317854
 MEDIALIBRARY_VERSION := git-$(MEDIALIBRARY_HASH)
 MEDIALIBRARY_GITURL := https://code.videolan.org/videolan/medialibrary.git
 
@@ -26,7 +26,7 @@ medialibrary: medialibrary-$(MEDIALIBRARY_VERSION).tar.xz .sum-medialibrary
 
 .medialibrary: medialibrary
 	$(RECONF)
-	cd $< && $(HOSTVARS_PIC) ./configure CXXFLAGS="-g -O0" --disable-tests --without-libvlc $(HOSTCONF)
+	cd $< && $(HOSTVARS_PIC) ./configure --disable-tests --without-libvlc $(HOSTCONF)
 	cd $< && $(MAKE)
 	cd $< && $(MAKE) install
 	touch $@

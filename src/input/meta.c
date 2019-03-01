@@ -2,7 +2,6 @@
  * meta.c : Metadata handling
  *****************************************************************************
  * Copyright (C) 1998-2004 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Antoine Cellerier <dionoea@videolan.org>
  *          Clément Stenac <zorglub@videolan.org
@@ -29,7 +28,7 @@
 #include <assert.h>
 
 #include <vlc_common.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 #include <vlc_url.h>
 #include <vlc_arrays.h>
 #include <vlc_modules.h>
@@ -217,8 +216,8 @@ void input_ExtractAttachmentAndCacheArt( input_thread_t *p_input,
     }
 
     /* */
-    input_attachment_t *p_attachment = NULL;
-    if( input_Control( p_input, INPUT_GET_ATTACHMENT, &p_attachment, name ) )
+    input_attachment_t *p_attachment = input_GetAttachment( p_input, name );
+    if( !p_attachment )
     {
         msg_Warn( p_input, "art attachment %s not found", name );
         return;

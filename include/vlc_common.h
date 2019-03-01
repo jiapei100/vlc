@@ -185,7 +185,7 @@
 # define VLC_USED
 #endif
 
-#ifdef __ELF__
+#if defined (__ELF__) || defined (__MACH__)
 # define VLC_WEAK __attribute__((weak))
 #else
 /**
@@ -372,6 +372,7 @@ typedef struct video_format_t video_format_t;
 typedef struct subs_format_t subs_format_t;
 typedef struct es_format_t es_format_t;
 typedef struct video_palette_t video_palette_t;
+typedef struct vlc_es_id_t vlc_es_id_t;
 
 /* Audio */
 typedef struct audio_output audio_output_t;
@@ -466,15 +467,24 @@ typedef union
 /*****************************************************************************
  * Error values (shouldn't be exposed)
  *****************************************************************************/
-#define VLC_SUCCESS        (-0) /**< No error */
-#define VLC_EGENERIC       (-1) /**< Unspecified error */
-#define VLC_ENOMEM         (-2) /**< Not enough memory */
-#define VLC_ETIMEOUT       (-3) /**< Timeout */
-#define VLC_ENOMOD         (-4) /**< Module not found */
-#define VLC_ENOOBJ         (-5) /**< Object not found */
-#define VLC_ENOVAR         (-6) /**< Variable not found */
-#define VLC_EBADVAR        (-7) /**< Bad variable value */
-#define VLC_ENOITEM        (-8) /**< Item not found */
+/** No error */
+#define VLC_SUCCESS        (-0)
+/** Unspecified error */
+#define VLC_EGENERIC       (-1)
+/** Not enough memory */
+#define VLC_ENOMEM         (-2)
+/** Timeout */
+#define VLC_ETIMEOUT       (-3)
+/** Module not found */
+#define VLC_ENOMOD         (-4)
+/** Object not found */
+#define VLC_ENOOBJ         (-5)
+/** Variable not found */
+#define VLC_ENOVAR         (-6)
+/** Bad variable value */
+#define VLC_EBADVAR        (-7)
+/** Item not found */
+#define VLC_ENOITEM        (-8)
 
 /*****************************************************************************
  * Variable callbacks: called when the value is modified
@@ -1116,6 +1126,12 @@ VLC_USED VLC_MALLOC
 static inline void *vlc_alloc(size_t count, size_t size)
 {
     return mul_overflow(count, size, &size) ? NULL : malloc(size);
+}
+
+VLC_USED
+static inline void *vlc_reallocarray(void *ptr, size_t count, size_t size)
+{
+    return mul_overflow(count, size, &size) ? NULL : realloc(ptr, size);
 }
 
 /*****************************************************************************

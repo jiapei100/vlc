@@ -2,7 +2,6 @@
  * text_layout.c : Text shaping and layout
  *****************************************************************************
  * Copyright (C) 2015 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Salah-Eddin Shaban <salshaaban@gmail.com>
  *          Laurent Aimar <fenrir@videolan.org>
@@ -65,6 +64,8 @@
 #include "freetype.h"
 #include "text_layout.h"
 #include "platform_fonts.h"
+
+#include <stdlib.h>
 
 /* Win32 */
 #ifdef _WIN32
@@ -201,6 +202,7 @@ line_desc_t *NewLine( int i_count )
 
     p_line->p_next = NULL;
     p_line->i_width = 0;
+    p_line->i_height = 0;
     p_line->i_base_line = 0;
     p_line->i_character_count = 0;
     p_line->i_first_visible_char_index = -1;
@@ -466,7 +468,8 @@ static int AnalyzeParagraph( paragraph_t *p_paragraph )
 #endif
 
 #ifdef HAVE_HARFBUZZ
-    hb_unicode_funcs_t *p_funcs = hb_unicode_funcs_get_default();
+    hb_unicode_funcs_t *p_funcs =
+        hb_unicode_funcs_create( hb_unicode_funcs_get_default() );
     for( int i = 0; i < p_paragraph->i_size; ++i )
         p_paragraph->p_scripts[ i ] =
             hb_unicode_script( p_funcs, p_paragraph->p_code_points[ i ] );
@@ -1150,7 +1153,7 @@ static int LoadGlyphs( filter_t *p_filter, paragraph_t *p_paragraph,
                 p_bitmaps->i_y_advance = p_face->glyph->advance.y;
             }
 
-            unsigned i_x_advance = FT_FLOOR( p_bitmaps->i_x_advance );
+            unsigned i_x_advance = FT_FLOOR( abs( p_bitmaps->i_x_advance ) );
             if( i_x_advance > *pi_max_advance_x )
                 *pi_max_advance_x = i_x_advance;
         }

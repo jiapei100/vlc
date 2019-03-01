@@ -2,7 +2,6 @@
  * item.c: input_item management
  *****************************************************************************
  * Copyright (C) 1998-2004 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Clément Stenac <zorglub@videolan.org>
  *
@@ -251,20 +250,22 @@ bool input_item_MetaMatch( input_item_t *p_i,
     return b_ret;
 }
 
+const char *input_item_GetMetaLocked(input_item_t *item,
+                                     vlc_meta_type_t meta_type)
+{
+    vlc_mutex_assert(&item->lock);
+
+    if (!item->p_meta)
+        return NULL;
+
+    return vlc_meta_Get(item->p_meta, meta_type);
+}
+
 char *input_item_GetMeta( input_item_t *p_i, vlc_meta_type_t meta_type )
 {
     vlc_mutex_lock( &p_i->lock );
-
-    if( !p_i->p_meta )
-    {
-        vlc_mutex_unlock( &p_i->lock );
-        return NULL;
-    }
-
-    char *psz = NULL;
-    if( vlc_meta_Get( p_i->p_meta, meta_type ) )
-        psz = strdup( vlc_meta_Get( p_i->p_meta, meta_type ) );
-
+    const char *value = input_item_GetMetaLocked( p_i, meta_type );
+    char *psz = value ? strdup( value ) : NULL;
     vlc_mutex_unlock( &p_i->lock );
     return psz;
 }
@@ -694,7 +695,7 @@ int input_item_AddSlave(input_item_t *p_item, input_item_slave_t *p_slave)
 static info_category_t *InputItemFindCat( input_item_t *p_item,
                                           int *pi_index, const char *psz_cat )
 {
-    vlc_assert_locked( &p_item->lock );
+    vlc_mutex_assert( &p_item->lock );
     for( int i = 0; i < p_item->i_categories && psz_cat; i++ )
     {
         info_category_t *p_cat = p_item->pp_categories[i];
@@ -745,7 +746,7 @@ static int InputItemVaAddInfo( input_item_t *p_i,
                                const char *psz_name,
                                const char *psz_format, va_list args )
 {
-    vlc_assert_locked( &p_i->lock );
+    vlc_mutex_assert( &p_i->lock );
 
     info_category_t *p_cat = InputItemFindCat( p_i, NULL, psz_cat );
     if( !p_cat )

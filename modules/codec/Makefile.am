@@ -190,7 +190,7 @@ libcc_plugin_la_SOURCES = codec/cc.c codec/cc.h codec/substext.h \
                           codec/cea708.h codec/cea708.c
 codec_LTLIBRARIES += libcc_plugin.la
 
-libcvdsub_plugin_la_SOURCES = codec/cvdsub.c
+libcvdsub_plugin_la_SOURCES = codec/cvdsub.c demux/mpeg/timestamps.h
 codec_LTLIBRARIES += libcvdsub_plugin.la
 
 libdvbsub_plugin_la_SOURCES = codec/dvbsub.c
@@ -252,7 +252,7 @@ libwebvtt_plugin_la_SOURCES += codec/webvtt/CSSGrammar.y \
                                codec/webvtt/css_bridge.h
 endif
 
-libsvcdsub_plugin_la_SOURCES = codec/svcdsub.c
+libsvcdsub_plugin_la_SOURCES = codec/svcdsub.c demux/mpeg/timestamps.h
 codec_LTLIBRARIES += libsvcdsub_plugin.la
 
 libt140_plugin_la_SOURCES = codec/t140.c
@@ -265,7 +265,7 @@ libtelx_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'
 EXTRA_LTLIBRARIES += libtelx_plugin.la
 codec_LTLIBRARIES += $(LTLIBtelx)
 
-libtextst_plugin_la_SOURCES = codec/textst.c
+libtextst_plugin_la_SOURCES = codec/textst.c demux/mpeg/timestamps.h
 libtextst_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'
 codec_LTLIBRARIES += libtextst_plugin.la
 
@@ -406,21 +406,12 @@ endif
 
 ### avcodec hardware acceleration ###
 
-libvaapi_drm_plugin_la_SOURCES = \
-	codec/avcodec/vaapi.c hw/vaapi/vlc_vaapi.c hw/vaapi/vlc_vaapi.h
-libvaapi_drm_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -DVLC_VA_BACKEND_DRM
-libvaapi_drm_plugin_la_CFLAGS = $(AM_CFLAGS) \
-	$(LIBVA_DRM_CFLAGS) $(AVCODEC_CFLAGS)
-libvaapi_drm_plugin_la_LIBADD = $(LIBVA_DRM_LIBS)
 libvaapi_plugin_la_SOURCES = \
 	codec/avcodec/vaapi.c hw/vaapi/vlc_vaapi.c hw/vaapi/vlc_vaapi.h
 libvaapi_plugin_la_CPPFLAGS = $(AM_CPPFLAGS)
 libvaapi_plugin_la_CFLAGS = $(AM_CFLAGS) $(AVCODEC_CFLAGS)
 libvaapi_plugin_la_LIBADD = $(LIBVA_LIBS)
 if HAVE_AVCODEC_VAAPI
-if HAVE_VAAPI_DRM
-codec_LTLIBRARIES += libvaapi_drm_plugin.la
-endif
 codec_LTLIBRARIES += libvaapi_plugin.la
 endif
 
@@ -580,6 +571,14 @@ libtwolame_plugin_la_LIBADD = $(TWOLAME_LIBS) $(LIBM)
 EXTRA_LTLIBRARIES += libtwolame_plugin.la
 codec_LTLIBRARIES += $(LTLIBtwolame)
 
+libdav1d_plugin_la_SOURCES = codec/dav1d.c
+libdav1d_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) $(DAV1D_CFLAGS)
+libdav1d_plugin_la_CFLAGS = $(AM_CFLAGS)
+libdav1d_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'
+libdav1d_plugin_la_LIBADD = $(DAV1D_LIBS)
+EXTRA_LTLIBRARIES += libdav1d_plugin.la
+codec_LTLIBRARIES += $(LTLIBdav1d)
+
 
 ### Hardware encoders ###
 
@@ -589,7 +588,7 @@ libcrystalhd_plugin_la_LIBADD = $(LIBS_crystalhd)
 EXTRA_LTLIBRARIES += libcrystalhd_plugin.la
 codec_LTLIBRARIES += $(LTLIBcrystalhd)
 
-libqsv_plugin_la_SOURCES = codec/qsv.c codec/vlc_fifo_helper.h
+libqsv_plugin_la_SOURCES = codec/qsv.c codec/vlc_fifo_helper.h demux/mpeg/timestamps.h
 libqsv_plugin_la_CFLAGS = $(AM_CFLAGS) $(MFX_CFLAGS)
 libqsv_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'
 libqsv_plugin_la_LIBADD = $(MFX_LIBS)

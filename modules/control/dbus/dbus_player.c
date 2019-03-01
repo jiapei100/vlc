@@ -5,7 +5,6 @@
  * Copyright © 2007-2011 Mirsal Ennaime
  * Copyright © 2009-2011 The VideoLAN team
  * Copyright © 2013      Alex Merry
- * $Id$
  *
  * Authors:    Mirsal Ennaime <mirsal at mirsal fr>
  *             Rafaël Carré <funman at videolanorg>
@@ -31,7 +30,7 @@
 #endif
 
 #include <vlc_common.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 #include <vlc_input.h>
 #include <vlc_interface.h>
 
@@ -268,7 +267,7 @@ MarshalCanPlay( intf_thread_t *p_intf, DBusMessageIter *container )
     playlist_t *p_playlist = p_intf->p_sys->p_playlist;
 
     PL_LOCK;
-    dbus_bool_t b_can_play = playlist_CurrentSize( p_playlist ) > 0;
+    dbus_bool_t b_can_play = !playlist_IsEmpty( p_playlist );
     PL_UNLOCK;
 
     if( !dbus_message_iter_append_basic( container, DBUS_TYPE_BOOLEAN,
@@ -433,7 +432,7 @@ static int
 MarshalMinimumRate( intf_thread_t *p_intf, DBusMessageIter *container )
 {
     VLC_UNUSED( p_intf );
-    double d_min_rate = (double) INPUT_RATE_MIN / INPUT_RATE_DEFAULT;
+    double d_min_rate = INPUT_RATE_MIN;
 
     if( !dbus_message_iter_append_basic( container, DBUS_TYPE_DOUBLE, &d_min_rate ) )
         return VLC_ENOMEM;
@@ -445,7 +444,7 @@ static int
 MarshalMaximumRate( intf_thread_t *p_intf, DBusMessageIter *container )
 {
     VLC_UNUSED( p_intf );
-    double d_max_rate = (double) INPUT_RATE_MAX / INPUT_RATE_DEFAULT;
+    double d_max_rate = INPUT_RATE_MAX;
 
     if( !dbus_message_iter_append_basic( container, DBUS_TYPE_DOUBLE, &d_max_rate ) )
         return VLC_ENOMEM;
@@ -689,8 +688,6 @@ DBUS_METHOD( GetAllProperties )
         dbus_error_free( &error );
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
-
-    msg_Dbg( (vlc_object_t*) p_this, "Getting All properties" );
 
     if( !dbus_message_iter_open_container( &args, DBUS_TYPE_ARRAY, "{sv}", &dict ) )
         return DBUS_HANDLER_RESULT_NEED_MEMORY;

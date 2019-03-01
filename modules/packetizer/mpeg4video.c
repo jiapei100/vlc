@@ -2,7 +2,6 @@
  * mpeg4video.c: mpeg 4 video packetizer
  *****************************************************************************
  * Copyright (C) 2001-2006 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Gildas Bazin <gbazin@videolan.org>
  *          Laurent Aimar <fenrir@via.ecp.fr>
@@ -258,7 +257,7 @@ static int PacketizeValidate( void *p_private, block_t *p_au )
 
     /* When starting the stream we can have the first frame with
      * a null DTS (i_interpolated_pts is initialized to 0) */
-    if( !p_au->i_dts )
+    if( p_au->i_dts == VLC_TICK_INVALID )
         p_au->i_dts = p_au->i_pts;
     return VLC_SUCCESS;
 }
@@ -475,7 +474,7 @@ static int ParseVO( decoder_t *p_dec, block_t *p_vo )
             p_dec->fmt_out.video.primaries = iso_23001_8_cp_to_vlc_primaries( colour_primaries );
             p_dec->fmt_out.video.transfer = iso_23001_8_tc_to_vlc_xfer( colour_xfer );
             p_dec->fmt_out.video.space = iso_23001_8_mc_to_vlc_coeffs( colour_matrix_coeff );
-            p_dec->fmt_out.video.b_color_range_full = full_range;
+            p_dec->fmt_out.video.color_range = full_range ? COLOR_RANGE_FULL : COLOR_RANGE_LIMITED;
         }
     }
 
@@ -544,14 +543,14 @@ static int ParseVOP( decoder_t *p_dec, block_t *p_vop )
         p_dec->fmt_in.video.i_frame_rate > 0 &&
         p_dec->fmt_in.video.i_frame_rate_base > 0 )
     {
-        p_sys->i_interpolated_pts += CLOCK_FREQ *
-        p_dec->fmt_in.video.i_frame_rate_base /
-        p_dec->fmt_in.video.i_frame_rate;
+        p_sys->i_interpolated_pts += vlc_tick_from_samples(
+        p_dec->fmt_in.video.i_frame_rate_base,
+        p_dec->fmt_in.video.i_frame_rate);
     }
     else if( p_sys->i_fps_num )
     {
         i_time_diff = (i_time_ref + i_time_increment) - (p_sys->i_last_time + p_sys->i_last_timeincr);
-        p_sys->i_interpolated_pts += ( CLOCK_FREQ * i_time_diff / p_sys->i_fps_num );
+        p_sys->i_interpolated_pts += vlc_tick_from_samples( i_time_diff, p_sys->i_fps_num );
     }
 
 #if 0

@@ -2,7 +2,6 @@
  * control.c
  *****************************************************************************
  * Copyright (C) 1999-2015 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Gildas Bazin <gbazin@videolan.org>
  *
@@ -82,50 +81,6 @@ int input_vaControl( input_thread_t *p_input, int i_query, va_list args )
                                + INPUT_CONTROL_NAV_ACTIVATE, NULL );
             return VLC_SUCCESS;
 
-        case INPUT_ADD_INFO:
-        {
-            char *psz_cat = va_arg( args, char * );
-            char *psz_name = va_arg( args, char * );
-            char *psz_format = va_arg( args, char * );
-
-            char *psz_value;
-
-            if( vasprintf( &psz_value, psz_format, args ) == -1 )
-                return VLC_EGENERIC;
-
-            int i_ret = input_item_AddInfo( priv->p_item, psz_cat, psz_name,
-                                            "%s", psz_value );
-            free( psz_value );
-
-            if( !priv->b_preparsing && !i_ret )
-                input_SendEventMetaInfo( p_input );
-            return i_ret;
-        }
-        case INPUT_REPLACE_INFOS:
-        case INPUT_MERGE_INFOS:
-        {
-            info_category_t *p_cat = va_arg( args, info_category_t * );
-
-            if( i_query == INPUT_REPLACE_INFOS )
-                input_item_ReplaceInfos( priv->p_item, p_cat );
-            else
-                input_item_MergeInfos( priv->p_item, p_cat );
-
-            if( !priv->b_preparsing )
-                input_SendEventMetaInfo( p_input );
-            return VLC_SUCCESS;
-        }
-        case INPUT_DEL_INFO:
-        {
-            char *psz_cat = va_arg( args, char * );
-            char *psz_name = va_arg( args, char * );
-
-            int i_ret = input_item_DelInfo( priv->p_item, psz_cat, psz_name );
-
-            if( !priv->b_preparsing && !i_ret )
-                input_SendEventMetaInfo( p_input );
-            return i_ret;
-        }
         case INPUT_ADD_BOOKMARK:
             p_bkmk = va_arg( args, seekpoint_t * );
             p_bkmk = vlc_seekpoint_Duplicate( p_bkmk );
@@ -273,7 +228,7 @@ int input_vaControl( input_thread_t *p_input, int i_query, va_list args )
 
         case INPUT_ADD_SLAVE:
         {
-            enum slave_type type =  (enum slave_type) va_arg( args, enum slave_type );
+            enum slave_type type =  va_arg( args, enum slave_type );
             psz = va_arg( args, char * );
             b_bool = va_arg( args, int );
             bool b_notify = va_arg( args, int );
@@ -315,51 +270,9 @@ int input_vaControl( input_thread_t *p_input, int i_query, va_list args )
             return VLC_SUCCESS;
         }
 
-        case INPUT_GET_ATTACHMENTS: /* arg1=input_attachment_t***, arg2=int*  res=can fail */
-        {
-            input_attachment_t ***ppp_attachment = va_arg( args, input_attachment_t *** );
-            int *pi_attachment = va_arg( args, int * );
-
-            vlc_mutex_lock( &priv->p_item->lock );
-            if( priv->i_attachment <= 0 )
-            {
-                vlc_mutex_unlock( &priv->p_item->lock );
-                *ppp_attachment = NULL;
-                *pi_attachment = 0;
-                return VLC_EGENERIC;
-            }
-            *pi_attachment = priv->i_attachment;
-            *ppp_attachment = vlc_alloc( priv->i_attachment, sizeof(input_attachment_t*));
-            for( int i = 0; i < priv->i_attachment; i++ )
-                (*ppp_attachment)[i] = vlc_input_attachment_Duplicate( priv->attachment[i] );
-
-            vlc_mutex_unlock( &priv->p_item->lock );
-            return VLC_SUCCESS;
-        }
-
-        case INPUT_GET_ATTACHMENT:  /* arg1=input_attachment_t**, arg2=char*  res=can fail */
-        {
-            input_attachment_t **pp_attachment = va_arg( args, input_attachment_t ** );
-            const char *psz_name = va_arg( args, const char * );
-
-            vlc_mutex_lock( &priv->p_item->lock );
-            for( int i = 0; i < priv->i_attachment; i++ )
-            {
-                if( !strcmp( priv->attachment[i]->psz_name, psz_name ) )
-                {
-                    *pp_attachment = vlc_input_attachment_Duplicate(priv->attachment[i] );
-                    vlc_mutex_unlock( &priv->p_item->lock );
-                    return VLC_SUCCESS;
-                }
-            }
-            *pp_attachment = NULL;
-            vlc_mutex_unlock( &priv->p_item->lock );
-            return VLC_EGENERIC;
-        }
-
-        case INPUT_RESTART_ES:
+        case INPUT_RESTART_ES_BY_ID:
             val.i_int = va_arg( args, int );
-            input_ControlPushHelper( p_input, INPUT_CONTROL_RESTART_ES, &val );
+            input_ControlPushHelper( p_input, INPUT_CONTROL_RESTART_ES_BY_ID, &val );
             return VLC_SUCCESS;
 
         case INPUT_UPDATE_VIEWPOINT:

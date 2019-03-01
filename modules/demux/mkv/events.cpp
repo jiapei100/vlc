@@ -2,7 +2,6 @@
  * events.cpp : matroska demuxer
  *****************************************************************************
  * Copyright (C) 2003-2004 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Steve Lhomme <steve.lhomme@free.fr>
@@ -124,10 +123,11 @@ int event_thread_t::EventKey( vlc_object_t *p_this, char const *,
 
 void event_thread_t::EventThread()
 {
+    vlc_object_t *vlc = VLC_OBJECT(vlc_object_instance(p_demux));
     int canc = vlc_savecancel ();
 
     /* catch all key event */
-    var_AddCallback( p_demux->obj.libvlc, "key-action", EventKey, this );
+    var_AddCallback( vlc, "key-action", EventKey, this );
 
     for( vlc_mutex_locker guard( &lock );; )
     {
@@ -156,7 +156,7 @@ void event_thread_t::EventThread()
         }
     }
 
-    var_DelCallback( p_demux->obj.libvlc, "key-action", EventKey, this );
+    var_DelCallback( vlc, "key-action", EventKey, this );
     vlc_restorecancel (canc);
 }
 

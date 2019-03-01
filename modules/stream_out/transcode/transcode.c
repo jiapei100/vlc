@@ -2,7 +2,6 @@
  * transcode.c: transcoding stream output module
  *****************************************************************************
  * Copyright (C) 2003-2009 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Gildas Bazin <gbazin@videolan.org>
@@ -366,6 +365,16 @@ static int Control( sout_stream_t *p_stream, int i_query, va_list args )
         case SOUT_STREAM_EMPTY:
             if( p_stream->p_next )
                 return sout_StreamControlVa( p_stream->p_next, i_query, args );
+            break;
+        case SOUT_STREAM_ID_SPU_HIGHLIGHT:
+        {
+            sout_stream_id_sys_t *id = (sout_stream_id_sys_t *) va_arg(args, void *);
+            void *spu_hl = va_arg(args, void *);
+            if( p_stream->p_next && id->downstream_id )
+                return sout_StreamControl( p_stream->p_next, i_query,
+                                           id->downstream_id, spu_hl );
+            break;
+        }
     }
     return VLC_EGENERIC;
 }
@@ -487,12 +496,7 @@ static void DeleteSoutStreamID( sout_stream_id_sys_t *id )
 {
     if( id )
     {
-        if( id->p_decoder )
-        {
-            es_format_Clean( &id->p_decoder->fmt_in );
-            es_format_Clean( &id->p_decoder->fmt_out );
-            vlc_object_release( id->p_decoder );
-        }
+        decoder_Destroy( id->p_decoder );
 
         vlc_mutex_destroy(&id->fifo.lock);
         free( id );
@@ -591,11 +595,9 @@ static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
     p_owner->p_obj = VLC_OBJECT(p_stream);
 
     id->p_decoder = &p_owner->dec;
-    id->p_decoder->p_module = NULL;
-    es_format_Init( &id->p_decoder->fmt_out, p_fmt->i_cat, 0 );
-    es_format_Copy( &id->p_decoder->fmt_in, p_fmt );
+    decoder_Init( id->p_decoder, p_fmt );
+
     es_format_SetMeta( &id->p_decoder->fmt_out, &id->p_decoder->fmt_in );
-    id->p_decoder->b_frame_drop_allowed = false;
 
     switch( p_fmt->i_cat )
     {
@@ -672,7 +674,7 @@ static void Del( sout_stream_t *p_stream, void *_id )
         {
         case AUDIO_ES:
             Send( p_stream, id, NULL );
-            transcode_audio_clean( id );
+            transcode_audio_clean( p_stream, id );
             if( id == p_sys->id_master_sync )
                 p_sys->id_master_sync = NULL;
             break;

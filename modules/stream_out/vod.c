@@ -2,7 +2,6 @@
  * vod.c: rtsp VoD server module
  *****************************************************************************
  * Copyright (C) 2003-2006, 2010 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Gildas Bazin <gbazin@videolan.org>
@@ -414,7 +413,7 @@ char *SDPGenerateVoD( const vod_media_t *p_media, const char *rtsp_url )
 
     if( p_media->i_length > 0 )
     {
-        lldiv_t d = lldiv( p_media->i_length / 1000, 1000 );
+        lldiv_t d = lldiv( MS_FROM_VLC_TICK(p_media->i_length), 1000 );
         sdp_AddAttribute( &sdp, "range"," npt=0-%lld.%03u", d.quot,
                           (unsigned)d.rem );
     }

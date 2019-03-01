@@ -29,6 +29,7 @@
 # include "config.h"
 #endif
 
+#define _DECL_DLLMAIN
 #include <vlc_common.h>
 
 #include "libvlc.h"
@@ -104,29 +105,36 @@ void vlc_mutex_lock (vlc_mutex_t *p_mutex)
         }
         p_mutex->locked = true;
         LeaveCriticalSection(&super_mutex);
-        return;
     }
+    else
+        EnterCriticalSection (&p_mutex->mutex);
 
-    EnterCriticalSection (&p_mutex->mutex);
+    vlc_mutex_mark(p_mutex);
 }
 
 int vlc_mutex_trylock (vlc_mutex_t *p_mutex)
 {
+    int ret;
+
     if (!p_mutex->dynamic)
     {   /* static mutexes */
-        int ret = EBUSY;
-
         EnterCriticalSection(&super_mutex);
         if (!p_mutex->locked)
         {
             p_mutex->locked = true;
             ret = 0;
         }
+        else
+            ret = EBUSY;
         LeaveCriticalSection(&super_mutex);
-        return ret;
     }
+    else
+        ret = TryEnterCriticalSection (&p_mutex->mutex) ? 0 : EBUSY;
 
-    return TryEnterCriticalSection (&p_mutex->mutex) ? 0 : EBUSY;
+    if (ret == 0)
+        vlc_mutex_mark(p_mutex);
+
+    return ret;
 }
 
 void vlc_mutex_unlock (vlc_mutex_t *p_mutex)
@@ -139,10 +147,11 @@ void vlc_mutex_unlock (vlc_mutex_t *p_mutex)
         if (p_mutex->contention)
             WakeAllConditionVariable(&super_variable);
         LeaveCriticalSection(&super_mutex);
-        return;
     }
+    else
+        LeaveCriticalSection (&p_mutex->mutex);
 
-    LeaveCriticalSection (&p_mutex->mutex);
+    vlc_mutex_unmark(p_mutex);
 }
 
 /*** Semaphore ***/
@@ -741,9 +750,7 @@ static vlc_tick_t mdate_perf (void)
 
     /* Convert to from (1/freq) to microsecond resolution */
     /* We need to split the division to avoid 63-bits overflow */
-    lldiv_t d = lldiv (counter.QuadPart, clk.perf.freq.QuadPart);
-
-    return vlc_tick_from_sec( d.quot ) + ((d.rem * CLOCK_FREQ) / clk.perf.freq.QuadPart);
+    return vlc_tick_from_frac(counter.QuadPart, clk.perf.freq.QuadPart);
 }
 
 static vlc_tick_t mdate_wall (void)
@@ -760,7 +767,7 @@ static vlc_tick_t mdate_wall (void)
     s.HighPart = ts.dwHighDateTime;
     /* hundreds of nanoseconds */
     static_assert ((10000000 % CLOCK_FREQ) == 0, "Broken frequencies ratio");
-    return s.QuadPart / (10000000 / CLOCK_FREQ);
+    return VLC_TICK_FROM_MSFTIME(s.QuadPart);
 }
 
 static vlc_tick_t mdate_default(void)
@@ -991,9 +998,8 @@ void vlc_threads_setup(libvlc_int_t *vlc)
 #define LOOKUP(s) (((s##_) = (void *)GetProcAddress(h, #s)) != NULL)
 
 extern vlc_rwlock_t config_lock;
-BOOL WINAPI DllMain (HINSTANCE, DWORD, LPVOID);
 
-BOOL WINAPI DllMain (HINSTANCE hinstDll, DWORD fdwReason, LPVOID lpvReserved)
+BOOL WINAPI DllMain (HANDLE hinstDll, DWORD fdwReason, LPVOID lpvReserved)
 {
     (void) hinstDll;
     (void) lpvReserved;

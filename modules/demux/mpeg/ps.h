@@ -2,7 +2,6 @@
  * ps.h: Program Stream demuxer helper
  *****************************************************************************
  * Copyright (C) 2004-2009 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *
@@ -78,8 +77,8 @@ static inline void ps_track_init( ps_track_t tk[PS_TK_COUNT] )
         tk[i].i_id   = 0;
         tk[i].i_next_block_flags = 0;
         tk[i].es     = NULL;
-        tk[i].i_first_pts = -1;
-        tk[i].i_last_pts = -1;
+        tk[i].i_first_pts = VLC_TICK_INVALID;
+        tk[i].i_last_pts = VLC_TICK_INVALID;
         es_format_Init( &tk[i].fmt, UNKNOWN_ES, 0 );
     }
 }
@@ -430,20 +429,21 @@ static inline int ps_pkt_size( const uint8_t *p, int i_peek )
 }
 
 /* parse a PACK PES */
-static inline int ps_pkt_parse_pack( block_t *p_pkt, int64_t *pi_scr,
+static inline int ps_pkt_parse_pack( block_t *p_pkt, vlc_tick_t *pi_scr,
                                      int *pi_mux_rate )
 {
     uint8_t *p = p_pkt->p_buffer;
     if( p_pkt->i_buffer >= 14 && (p[4] >> 6) == 0x01 )
     {
-        *pi_scr = FROM_SCALE_NZ( ExtractPackHeaderTimestamp( &p[4] ) );
+        *pi_scr = FROM_SCALE( ExtractPackHeaderTimestamp( &p[4] ) );
         *pi_mux_rate = ( p[10] << 14 )|( p[11] << 6 )|( p[12] >> 2);
     }
     else if( p_pkt->i_buffer >= 12 && (p[4] >> 4) == 0x02 ) /* MPEG-1 Pack SCR, same bits as PES/PTS */
     {
-        if(!ExtractPESTimestamp( &p[4], 0x02, pi_scr ))
+        stime_t i_scr;
+        if(!ExtractPESTimestamp( &p[4], 0x02, &i_scr ))
             return VLC_EGENERIC;
-        *pi_scr = FROM_SCALE_NZ( *pi_scr );
+        *pi_scr = FROM_SCALE( i_scr );
         *pi_mux_rate = ( ( p[9]&0x7f )<< 15 )|( p[10] << 7 )|( p[11] >> 1);
     }
     else
@@ -493,8 +493,8 @@ static inline int ps_pkt_parse_system( block_t *p_pkt, ps_psm_t *p_psm,
 static inline int ps_pkt_parse_pes( vlc_object_t *p_object, block_t *p_pes, int i_skip_extra )
 {
     unsigned int i_skip  = 0;
-    vlc_tick_t i_pts = -1;
-    vlc_tick_t i_dts = -1;
+    stime_t i_pts = -1;
+    stime_t i_dts = -1;
     uint8_t i_stream_id = 0;
     bool b_pes_scrambling = false;
 

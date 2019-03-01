@@ -24,6 +24,10 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  *****************************************************************************/
 
+#ifndef UPNP_WRAPPER_H
+#define UPNP_WRAPPER_H
+
+#include <vlc_common.h>
 #include <vlc_charset.h>
 
 #include <memory>
@@ -31,6 +35,9 @@
 #include <algorithm>
 #include <assert.h>
 
+#ifdef _WIN32
+#include <wincrypt.h>
+#endif
 #include <upnp.h>
 #include <upnptools.h>
 
@@ -342,3 +349,4 @@ inline char *getIpv4ForMulticast()
 #endif
 
 #endif /* _WIN32 */
+#endif /* UPNP_WRAPPER_H */

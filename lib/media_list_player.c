@@ -2,7 +2,6 @@
  * media_list_player.c: libvlc new API media_list player functions
  *****************************************************************************
  * Copyright (C) 2007-2015 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Pierre d'Herbemont <pdherbemont # videolan.org>
  *          Niles Bindel <zaggal69 # gmail.com>
@@ -29,6 +28,7 @@
 
 #include <vlc/libvlc.h>
 #include <vlc/libvlc_renderer_discoverer.h>
+#include <vlc/libvlc_picture.h>
 #include <vlc/libvlc_media.h>
 #include <vlc/libvlc_media_list.h>
 #include <vlc/libvlc_media_player.h>
@@ -74,12 +74,6 @@ struct libvlc_media_list_player_t
     vlc_thread_t                thread;
 };
 
-/* This is not yet exported by libvlccore */
-static inline void vlc_assert_locked(vlc_mutex_t *mutex)
-{
-    VLC_UNUSED(mutex);
-}
-
 /*
  * Forward declaration
  */
@@ -113,7 +107,8 @@ static inline void unlock(libvlc_media_list_player_t * p_mlp)
 
 static inline void assert_locked(libvlc_media_list_player_t * p_mlp)
 {
-    vlc_assert_locked(&p_mlp->mp_callback_lock);
+    vlc_mutex_assert(&p_mlp->mp_callback_lock);
+    (void) p_mlp;
 }
 
 static inline libvlc_event_manager_t * mlist_em(libvlc_media_list_player_t * p_mlp)

@@ -90,6 +90,7 @@ typedef struct
 
 #if !defined (HAVE_ALIGNED_ALLOC) || \
     !defined (HAVE_MEMRCHR) || \
+    !defined (HAVE_QSORT_R) || \
     !defined (HAVE_STRLCPY) || \
     !defined (HAVE_STRNDUP) || \
     !defined (HAVE_STRNLEN) || \
@@ -402,8 +403,8 @@ enum
 struct pollfd
 {
     int fd;
-    unsigned events;
-    unsigned revents;
+    short events;
+    short revents;
 };
 #endif
 #ifndef HAVE_POLL
@@ -413,11 +414,13 @@ int poll (struct pollfd *, unsigned, int);
 
 #ifndef HAVE_IF_NAMEINDEX
 #include <errno.h>
+# ifndef HAVE_STRUCT_IF_NAMEINDEX
 struct if_nameindex
 {
     unsigned if_index;
     char    *if_name;
 };
+# endif
 # define if_nameindex()         (errno = ENOBUFS, NULL)
 # define if_freenameindex(list) (void)0
 #endif
@@ -484,6 +487,8 @@ void *tsearch( const void *key, void **rootp, int(*cmp)(const void *, const void
 void *tfind( const void *key, const void **rootp, int(*cmp)(const void *, const void *) );
 void *tdelete( const void *key, void **rootp, int(*cmp)(const void *, const void *) );
 void twalk( const void *root, void(*action)(const void *nodep, VISIT which, int depth) );
+void *lfind( const void *key, const void *base, size_t *nmemb,
+             size_t size, int(*cmp)(const void *, const void *) );
 #endif /* HAVE_SEARCH_H */
 #ifndef HAVE_TDESTROY
 void tdestroy( void *root, void (*free_node)(void *nodep) );

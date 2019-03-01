@@ -45,6 +45,7 @@
 #include "../adaptive/tools/Conversions.hpp"
 #include <vlc_stream.h>
 #include <cstdio>
+#include <limits>
 
 using namespace dash::mpd;
 using namespace adaptive::xml;
@@ -95,23 +96,25 @@ void    IsoffMainParser::parseMPDAttributes   (MPD *mpd, xml::Node *node)
 
     it = attr.find("mediaPresentationDuration");
     if(it != attr.end())
-        mpd->duration.Set(IsoTime(it->second) * CLOCK_FREQ);
+        mpd->duration.Set(IsoTime(it->second));
 
     it = attr.find("minBufferTime");
     if(it != attr.end())
-        mpd->setMinBuffering(IsoTime(it->second) * CLOCK_FREQ);
+        mpd->setMinBuffering(IsoTime(it->second));
 
     it = attr.find("minimumUpdatePeriod");
     if(it != attr.end())
     {
-        vlc_tick_t minupdate = IsoTime(it->second) * CLOCK_FREQ;
+        mpd->b_needsUpdates = true;
+        vlc_tick_t minupdate = IsoTime(it->second);
         if(minupdate > 0)
             mpd->minUpdatePeriod.Set(minupdate);
     }
+    else mpd->b_needsUpdates = false;
 
     it = attr.find("maxSegmentDuration");
     if(it != attr.end())
-        mpd->maxSegmentDuration.Set(IsoTime(it->second) * CLOCK_FREQ);
+        mpd->maxSegmentDuration.Set(IsoTime(it->second));
 
     it = attr.find("type");
     if(it != attr.end())
@@ -123,11 +126,11 @@ void    IsoffMainParser::parseMPDAttributes   (MPD *mpd, xml::Node *node)
 
     it = attr.find("timeShiftBufferDepth");
         if(it != attr.end())
-            mpd->timeShiftBufferDepth.Set(IsoTime(it->second) * CLOCK_FREQ);
+            mpd->timeShiftBufferDepth.Set(IsoTime(it->second));
 
     it = attr.find("suggestedPresentationDelay");
     if(it != attr.end())
-        mpd->suggestedPresentationDelay.Set(IsoTime(it->second) * CLOCK_FREQ);
+        mpd->suggestedPresentationDelay.Set(IsoTime(it->second));
 }
 
 void IsoffMainParser::parsePeriods(MPD *mpd, Node *root)
@@ -143,9 +146,9 @@ void IsoffMainParser::parsePeriods(MPD *mpd, Node *root)
             continue;
         parseSegmentInformation(*it, period, &nextid);
         if((*it)->hasAttribute("start"))
-            period->startTime.Set(IsoTime((*it)->getAttributeValue("start")) * CLOCK_FREQ);
+            period->startTime.Set(IsoTime((*it)->getAttributeValue("start")));
         if((*it)->hasAttribute("duration"))
-            period->duration.Set(IsoTime((*it)->getAttributeValue("duration")) * CLOCK_FREQ);
+            period->duration.Set(IsoTime((*it)->getAttributeValue("duration")));
         std::vector<Node *> baseUrls = DOMHelper::getChildElementByTagName(*it, "BaseURL");
         if(!baseUrls.empty())
             period->baseUrl.Set( new Url( baseUrls.front()->getText() ) );
@@ -264,7 +267,11 @@ void    IsoffMainParser::parseAdaptationSets  (Node *periodNode, Period *period)
         parseSegmentInformation(*it, adaptationSet, &nextid);
 
         parseRepresentations((*it), adaptationSet);
-        period->addAdaptationSet(adaptationSet);
+
+        if(!adaptationSet->getRepresentations().empty())
+            period->addAdaptationSet(adaptationSet);
+        else
+            delete adaptationSet;
     }
 }
 void    IsoffMainParser::parseRepresentations (Node *adaptationSetNode, AdaptationSet *adaptationSet)
@@ -459,9 +466,13 @@ void IsoffMainParser::parseTimeline(Node *node, MediaSegmentTemplate *templ)
             if(!s->hasAttribute("d")) /* Mandatory */
                 continue;
             stime_t d = Integer<stime_t>(s->getAttributeValue("d"));
-            uint64_t r = 0; // never repeats by default
+            int64_t r = 0; // never repeats by default
             if(s->hasAttribute("r"))
-                r = Integer<uint64_t>(s->getAttributeValue("r"));
+            {
+                r = Integer<int64_t>(s->getAttributeValue("r"));
+                if(r < 0)
+                    r = std::numeric_limits<unsigned>::max();
+            }
 
             if(s->hasAttribute("t"))
             {

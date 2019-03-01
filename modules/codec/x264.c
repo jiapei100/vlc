@@ -2,7 +2,6 @@
  * x264.c: h264 video encoder
  *****************************************************************************
  * Copyright (C) 2004-2010 the VideoLAN team
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Ilkka Ollakka <ileoo (at)videolan org>
@@ -816,7 +815,7 @@ static int  Open ( vlc_object_t *p_this )
         return VLC_ENOMEM;
 
     fullrange = var_GetBool( p_enc, SOUT_CFG_PREFIX "fullrange" );
-    fullrange |= p_enc->fmt_in.video.b_color_range_full;
+    fullrange |= p_enc->fmt_in.video.color_range == COLOR_RANGE_FULL;
     p_enc->fmt_in.i_codec = fullrange ? VLC_CODEC_J420 : VLC_CODEC_I420;
     p_sys->i_colorspace = X264_CSP_I420;
     char *psz_profile = var_GetString( p_enc, SOUT_CFG_PREFIX "profile" );
@@ -1542,9 +1541,9 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
     if( !p_sys->param.b_vfr_input )
     {
         /* This isn't really valid for streams with B-frames */
-        p_block->i_length = CLOCK_FREQ *
-            p_enc->fmt_in.video.i_frame_rate_base /
-                p_enc->fmt_in.video.i_frame_rate;
+        p_block->i_length = vlc_tick_from_samples(
+                    p_enc->fmt_in.video.i_frame_rate_base,
+                    p_enc->fmt_in.video.i_frame_rate );
     }
 
     /* scale pts-values back*/

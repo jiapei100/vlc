@@ -79,6 +79,9 @@ endif
 ifneq ($(findstring $(origin WIDL),undefined default),)
 WIDL := widl
 endif
+ifneq ($(findstring $(origin WINDRES),undefined default),)
+WINDRES := windres
+endif
 else
 ifneq ($(findstring $(origin CC),undefined default),)
 CC := $(HOST)-gcc
@@ -100,6 +103,9 @@ STRIP := $(HOST)-strip
 endif
 ifneq ($(findstring $(origin WIDL),undefined default),)
 WIDL := $(HOST)-widl
+endif
+ifneq ($(findstring $(origin WINDRES),undefined default),)
+WINDRES := $(HOST)-windres
 endif
 endif
 
@@ -136,9 +142,13 @@ endif
 EXTRA_CFLAGS += $(CFLAGS)
 endif
 
+LN_S = ln -s
 ifdef HAVE_WIN32
 ifneq ($(shell $(CC) $(CFLAGS) -E -dM -include _mingw.h - < /dev/null | grep -E __MINGW64_VERSION_MAJOR),)
 HAVE_MINGW_W64 := 1
+endif
+ifndef HAVE_CROSS_COMPILE
+LN_S = cp -R
 endif
 ifneq ($(findstring clang, $(shell $(CC) --version)),)
 HAVE_CLANG := 1
@@ -286,7 +296,7 @@ HOSTTOOLS := \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" \
 	AR="$(AR)" CCAS="$(CCAS)" RANLIB="$(RANLIB)" STRIP="$(STRIP)" \
 	PATH="$(PREFIX)/bin:$(PATH)"
-HOSTVARS := $(HOSTTOOLS) \
+HOSTVARS := \
 	CPPFLAGS="$(CPPFLAGS)" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CXXFLAGS)" \
@@ -296,6 +306,11 @@ HOSTVARS_PIC := $(HOSTTOOLS) \
 	CFLAGS="$(CFLAGS) $(PIC)" \
 	CXXFLAGS="$(CXXFLAGS) $(PIC)" \
 	LDFLAGS="$(LDFLAGS)"
+
+# Keep a version of HOSTVARS without the tools, since meson requires the
+# tools variables to point to the native ones
+HOSTVARS_MESON := $(HOSTVARS)
+HOSTVARS := $(HOSTTOOLS) $(HOSTVARS)
 
 download_git = \
 	rm -Rf -- "$(@:.tar.xz=)" && \
@@ -324,9 +339,9 @@ checksum = \
 		"$(SRC)/$(patsubst .sum-%,%,$@)/$(2)SUMS"
 CHECK_SHA512 = $(call checksum,$(SHA512SUM),SHA512)
 UNPACK = $(RM) -R $@ \
-	$(foreach f,$(filter %.tar.gz %.tgz,$^), && tar xvzf $(f)) \
-	$(foreach f,$(filter %.tar.bz2,$^), && tar xvjf $(f)) \
-	$(foreach f,$(filter %.tar.xz,$^), && tar xvJf $(f)) \
+	$(foreach f,$(filter %.tar.gz %.tgz,$^), && tar xvzfo $(f)) \
+	$(foreach f,$(filter %.tar.bz2,$^), && tar xvjfo $(f)) \
+	$(foreach f,$(filter %.tar.xz,$^), && tar xvJfo $(f)) \
 	$(foreach f,$(filter %.zip,$^), && unzip $(f))
 UNPACK_DIR = $(patsubst %.tar,%,$(basename $(notdir $<)))
 APPLY = (cd $(UNPACK_DIR) && patch -fp1) <
@@ -349,12 +364,23 @@ endif
 RECONF = mkdir -p -- $(PREFIX)/share/aclocal && \
 	cd $< && $(AUTORECONF) -fiv $(ACLOCAL_AMFLAGS)
 CMAKE = cmake . -DCMAKE_TOOLCHAIN_FILE=$(abspath toolchain.cmake) \
-		-DCMAKE_INSTALL_PREFIX=$(PREFIX) $(CMAKE_GENERATOR)
+		-DCMAKE_INSTALL_PREFIX=$(PREFIX) $(CMAKE_GENERATOR) -DCMAKE_DEBUG_POSTFIX:STRING=
 
 ifeq ($(V),1)
 CMAKE += -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
 endif
 
+MESON = meson --default-library static --prefix "$(PREFIX)" --backend ninja \
+	-Dlibdir=lib
+ifndef WITH_OPTIMIZATION
+MESON += --buildtype debug
+else
+MESON += --buildtype release
+endif
+
+ifdef HAVE_CROSS_COMPILE
+MESON += --cross-file $(abspath crossfile.meson)
+endif
 
 ifdef GPL
 REQUIRE_GPL =
@@ -399,6 +425,7 @@ install: $(PKGS:%=.%)
 mostlyclean:
 	-$(RM) $(foreach p,$(PKGS_ALL),.$(p) .sum-$(p) .dep-$(p))
 	-$(RM) toolchain.cmake
+	-$(RM) crossfile.meson
 	-$(RM) -R "$(PREFIX)"
 	-$(RM) -R "$(BUILDBINDIR)"
 	-$(RM) -R */
@@ -478,7 +505,7 @@ else
 endif
 endif
 ifdef HAVE_CROSS_COMPILE
-	echo "set(CMAKE_RC_COMPILER $(HOST)-windres)" >> $@
+	echo "set(CMAKE_RC_COMPILER $(WINDRES))" >> $@
 endif
 endif
 ifdef HAVE_DARWIN_OS
@@ -492,6 +519,8 @@ ifdef HAVE_IOS
 else
 	echo "set(CMAKE_OSX_SYSROOT $(MACOSX_SDK))" >> $@
 endif
+else
+	echo "set(CMAKE_AR $(AR) CACHE FILEPATH "Archiver")" >> $@
 endif
 ifdef HAVE_CROSS_COMPILE
 	echo "set(_CMAKE_TOOLCHAIN_PREFIX $(HOST)-)" >> $@
@@ -504,11 +533,66 @@ endif
 endif
 	echo "set(CMAKE_C_COMPILER $(CC))" >> $@
 	echo "set(CMAKE_CXX_COMPILER $(CXX))" >> $@
+ifeq ($(findstring msys,$(BUILD)),msys)
+	echo "set(CMAKE_FIND_ROOT_PATH `cygpath -m $(PREFIX)`)" >> $@
+else
 	echo "set(CMAKE_FIND_ROOT_PATH $(PREFIX))" >> $@
+endif
 	echo "set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)" >> $@
 ifdef HAVE_CROSS_COMPILE
 	echo "set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)" >> $@
 	echo "set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)" >> $@
+	echo "set(PKG_CONFIG_EXECUTABLE $(PKG_CONFIG))" >> $@
+endif
+
+crossfile.meson:
+	$(RM) $@
+	echo "[binaries]" >> $@
+	echo "c = '$(CC)'" >> $@
+	echo "cpp = '$(CXX)'" >> $@
+	echo "ar = '$(AR)'" >> $@
+	echo "strip = '$(STRIP)'" >> $@
+	echo "pkgconfig = '$(PKG_CONFIG)'" >> $@
+	echo "windres = '$(WINDRES)'" >> $@
+	echo "[properties]" >> $@
+	echo "needs_exe_wrapper = true" >> $@
+ifdef HAVE_CROSS_COMPILE
+	echo "cpp_args = [ '-I$(PREFIX)/include' ]" >> $@
+	echo "cpp_link_args = [ '-L$(PREFIX)/lib' ]" >> $@
+ifdef HAVE_DARWIN_OS
+ifdef HAVE_IOS
+ifdef HAVE_TVOS
+	echo "c_args = ['-I$(PREFIX)/include', '-isysroot', '$(IOS_SDK)', '-mtvos-version-min=10.2', '-arch', '$(PLATFORM_SHORT_ARCH)', '-fembed-bitcode']" >> $@
+	echo "c_link_args = ['-L$(PREFIX)/lib', '-isysroot', '$(IOS_SDK)', '-arch', '$(PLATFORM_SHORT_ARCH)', '-fembed-bitcode']" >> $@
+else
+	echo "c_args = ['-I$(PREFIX)/include', '-isysroot', '$(IOS_SDK)', '-miphoneos-version-min=8.4', '-arch', '$(PLATFORM_SHORT_ARCH)']" >> $@
+	echo "c_link_args = ['-L$(PREFIX)/lib', '-isysroot', '$(IOS_SDK)', '-arch', '$(PLATFORM_SHORT_ARCH)']" >> $@
+endif
+endif
+ifdef HAVE_MACOSX
+	echo "c_args = ['-I$(PREFIX)/include', '-isysroot', '$(MACOSX_SDK)', '-mmacosx-version-min=10.10', '-arch', '$(ARCH)']" >> $@
+	echo "c_link_args = ['-L$(PREFIX)/lib', '-isysroot', '$(MACOSX_SDK)', '-arch', '$(ARCH)']" >> $@
+endif
+else
+	echo "c_args = [ '-I$(PREFIX)/include' ]" >> $@
+	echo "c_link_args = [ '-L$(PREFIX)/lib' ]" >> $@
+endif
+	echo "[host_machine]" >> $@
+ifdef HAVE_WIN32
+	echo "system = 'windows'" >> $@
+else
+ifdef HAVE_DARWIN_OS
+	echo "system = 'darwin'" >> $@
+else
+ifdef HAVE_LINUX
+	# android has also system = linux and defines HAVE_LINUX
+	echo "system = 'linux'" >> $@
+endif
+endif
+endif
+	echo "cpu_family = '$(subst i386,x86,$(ARCH))'" >> $@
+	echo "cpu = '`echo $(HOST) | cut -d - -f 1`'" >> $@
+	echo "endian = 'little'" >> $@
 endif
 
 # Default pattern rules

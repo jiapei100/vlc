@@ -2,7 +2,6 @@
  * dshow.cpp : DirectShow access and access_demux module for vlc
  *****************************************************************************
  * Copyright (C) 2002-2004, 2006, 2008, 2010 the VideoLAN team
- * $Id$
  *
  * Author: Gildas Bazin <gbazin@videolan.org>
  *         Damien Fouilleul <damienf@videolan.org>
@@ -1949,7 +1948,6 @@ static int AccessControl( stream_t *p_access, int i_query, va_list args )
 static int DemuxControl( demux_t *p_demux, int i_query, va_list args )
 {
     bool    *pb;
-    int64_t *pi64;
 
     access_sys_t *p_sys = ( access_sys_t * ) p_demux->p_sys;
 
@@ -1970,8 +1968,7 @@ static int DemuxControl( demux_t *p_demux, int i_query, va_list args )
         return VLC_SUCCESS;
 
     case DEMUX_GET_TIME:
-        pi64 = va_arg( args, int64_t * );
-        *pi64 = vlc_tick_now() - p_sys->i_start;
+        *va_arg( args, vlc_tick_t * ) = vlc_tick_now() - p_sys->i_start;
         return VLC_SUCCESS;
 
     /* TODO implement others */

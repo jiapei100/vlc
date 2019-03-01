@@ -2,7 +2,6 @@
  * asf.c: asf muxer module for vlc
  *****************************************************************************
  * Copyright (C) 2003-2004, 2006 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Gildas Bazin <gbazin@videolan.org>
@@ -132,7 +131,7 @@ typedef struct
 
 typedef struct
 {
-    guid_t          fid;    /* file id */
+    vlc_guid_t      fid;    /* file id */
     int             i_packet_size;
     int64_t         i_packet_count;
     vlc_tick_t      i_dts_first;
@@ -817,7 +816,7 @@ static void bo_addle_str16_nosize( bo_t *bo, const char *str )
 /****************************************************************************
  * GUID definitions
  ****************************************************************************/
-static void bo_add_guid( bo_t *p_bo, const guid_t *id )
+static void bo_add_guid( bo_t *p_bo, const vlc_guid_t *id )
 {
     bo_addle_u32( p_bo, id->Data1 );
     bo_addle_u16( p_bo, id->Data2 );
@@ -854,10 +853,9 @@ static block_t *asf_header_create( sout_mux_t *p_mux, bool b_broadcast )
 
     msg_Dbg( p_mux, "Asf muxer creating header" );
 
-    if( p_sys->i_dts_first != VLC_TICK_INVALID )
+    if( p_sys->i_dts_first != VLC_TICK_INVALID && p_sys->i_dts_last > p_sys->i_dts_first )
     {
         i_duration = p_sys->i_dts_last - p_sys->i_dts_first;
-        if( i_duration < 0 ) i_duration = 0;
     }
 
     /* calculate header size */
@@ -940,8 +938,8 @@ static block_t *asf_header_create( sout_mux_t *p_mux, bool b_broadcast )
                                 p_sys->i_packet_size ); /* file size */
     bo_addle_u64( &bo, 0 );                 /* creation date */
     bo_addle_u64( &bo, b_broadcast ? 0xffffffffLL : p_sys->i_packet_count );
-    bo_addle_u64( &bo, i_duration * 10 );   /* play duration (100ns) */
-    bo_addle_u64( &bo, i_duration * 10 );   /* send duration (100ns) */
+    bo_addle_u64( &bo, MSFTIME_FROM_VLC_TICK(i_duration) );   /* play duration (100ns) */
+    bo_addle_u64( &bo, MSFTIME_FROM_VLC_TICK(i_duration) );   /* send duration (100ns) */
     bo_addle_u64( &bo, p_sys->i_preroll_time ); /* preroll duration (ms) */
     bo_addle_u32( &bo, b_broadcast ? 0x01 : 0x02 /* seekable */ ); /* flags */
     bo_addle_u32( &bo, p_sys->i_packet_size );  /* packet size min */

@@ -45,7 +45,7 @@ vlc_module_begin ()
     add_submodule()
         set_shortname( "WEBVTT" )
         set_description( N_("WEBVTT subtitles parser") )
-        set_capability( "demux", 3 )
+        set_capability( "demux", 11 )
         set_category( CAT_INPUT )
         set_subcategory( SUBCAT_INPUT_DEMUX )
         set_callbacks( webvtt_OpenDemux, webvtt_CloseDemux )
@@ -89,9 +89,7 @@ struct webvtt_text_parser_t
 
 static vlc_tick_t MakeTime( unsigned t[4] )
 {
-    return VLC_TICK_FROM_SEC(t[0] * 3600)+
-           VLC_TICK_FROM_SEC(t[1] * 60)+
-           VLC_TICK_FROM_SEC(t[2]) +
+    return vlc_tick_from_sec( t[0] * 3600 + t[1] * 60 + t[2] ) +
            VLC_TICK_FROM_MS(t[3]);
 }
 

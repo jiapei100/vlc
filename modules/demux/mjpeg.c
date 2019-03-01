@@ -2,7 +2,6 @@
  * mjpeg.c : demuxes mjpeg webcam http streams
  *****************************************************************************
  * Copyright (C) 2004 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Henry Jen (slowhog) <henryjen@ztune.net>
  *          Derk-Jan Hartman (thedj)
@@ -267,7 +266,7 @@ static int SendBlock( demux_t *p_demux, int i )
         return VLC_DEMUXER_EOF;
     }
 
-    if( p_sys->i_frame_length )
+    if( p_sys->i_frame_length != VLC_TICK_INVALID )
     {
         p_block->i_pts = p_sys->i_time;
         p_sys->i_time += p_sys->i_frame_length;
@@ -366,7 +365,7 @@ static int Open( vlc_object_t * p_this )
     /* Frame rate */
     float f_fps = var_InheritFloat( p_demux, "mjpeg-fps" );
 
-    p_sys->i_still_end = 0;
+    p_sys->i_still_end = VLC_TICK_INVALID;
     if( demux_IsPathExtension( p_demux, ".jpeg" ) ||
         demux_IsPathExtension( p_demux, ".jpg" ) )
     {
@@ -378,7 +377,7 @@ static int Open( vlc_object_t * p_this )
     }
     else
         p_sys->b_still = false;
-    p_sys->i_frame_length = f_fps ? (CLOCK_FREQ / f_fps) : 0;
+    p_sys->i_frame_length = f_fps ? vlc_tick_rate_duration(f_fps) : VLC_TICK_INVALID;
 
     es_format_Init( &p_sys->fmt, VIDEO_ES, VLC_CODEC_MJPG );
 
@@ -400,11 +399,11 @@ static int MjpgDemux( demux_t *p_demux )
     demux_sys_t *p_sys = p_demux->p_sys;
     int i;
 
-    if( p_sys->b_still && p_sys->i_still_end )
+    if( p_sys->b_still && p_sys->i_still_end != VLC_TICK_INVALID )
     {
         /* Still frame, wait until the pause delay is gone */
         vlc_tick_wait( p_sys->i_still_end );
-        p_sys->i_still_end = 0;
+        p_sys->i_still_end = VLC_TICK_INVALID;
         return VLC_DEMUXER_SUCCESS;
     }
 

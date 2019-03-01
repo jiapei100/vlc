@@ -39,9 +39,9 @@ download_pkg = $(call download,$(VIDEOLAN)/$(2)/$(lastword $(subst /, ,$(@)))) |
 	&& grep $(@) SHA512SUMS| $(SHA512SUM)
 
 UNPACK = $(RM) -R $@ \
-    $(foreach f,$(filter %.tar.gz %.tgz,$^), && tar xvzf $(f)) \
-    $(foreach f,$(filter %.tar.bz2,$^), && tar xvjf $(f)) \
-    $(foreach f,$(filter %.tar.xz,$^), && tar xvJf $(f)) \
+    $(foreach f,$(filter %.tar.gz %.tgz,$^), && tar xvzfo $(f)) \
+    $(foreach f,$(filter %.tar.bz2,$^), && tar xvjfo $(f)) \
+    $(foreach f,$(filter %.tar.xz,$^), && tar xvJfo $(f)) \
     $(foreach f,$(filter %.zip,$^), && unzip $(f))
 
 UNPACK_DIR = $(patsubst %.tar,%,$(basename $(notdir $<)))
@@ -91,7 +91,7 @@ cmake-$(CMAKE_VERSION).tar.gz:
 
 cmake: cmake-$(CMAKE_VERSION).tar.gz
 	$(UNPACK)
-	$(APPLY) cmake-winstore.patch
+	$(APPLY) cmake-msys-FindPkg.patch
 	$(MOVE)
 
 .buildcmake: cmake
@@ -128,6 +128,7 @@ libtool: libtool-$(LIBTOOL_VERSION).tar.gz
 	$(APPLY) libtool-2.4.2-bitcode.patch
 	$(APPLY) libtool-2.4.2-san.patch
 	$(APPLY) libtool-2.4.6-clang-libs.patch
+	$(APPLY) libtool-2.4.2-response-files.patch
 	$(MOVE)
 
 .buildlibtool: libtool .automake .help2man
@@ -395,6 +396,44 @@ CLEAN_PKG += gettext
 DISTCLEAN_PKG += gettext-$(GETTEXT_VERSION).tar.gz
 CLEAN_FILE += .buildgettext
 
+#
+# meson build
+#
+
+meson-$(MESON_VERSION).tar.gz:
+	$(call download_pkg,$(MESON_URL),meson)
+
+meson: meson-$(MESON_VERSION).tar.gz
+	$(UNPACK)
+	$(MOVE)
+
+.buildmeson: meson
+	printf "#!/bin/sh\n\npython3 $(abspath .)/meson/meson.py \"\$$@\"\n" > $(PREFIX)/bin/meson
+	chmod +x $(PREFIX)/bin/meson
+	touch $@
+
+CLEAN_PKG += meson
+DISTCLEAN_PKG += meson-$(MESON_VERSION).tar.gz
+CLEAN_FILE += .buildmeson
+
+#
+# ninja build
+#
+
+ninja-$(NINJA_VERSION).tar.gz:
+	$(call download_pkg,$(NINJA_URL),ninja)
+
+ninja: ninja-$(NINJA_VERSION).tar.gz
+	$(UNPACK)
+	$(MOVE)
+
+.buildninja: ninja
+	(cd $<; ./configure.py --bootstrap && mv ninja $(PREFIX)/bin/)
+	touch $@
+
+CLEAN_PKG += ninja
+DISTCLEAN_PKG += ninja-$(NINJA_VERSION).tar.gz
+CLEAN_FILE += .buildninja
 
 #
 #

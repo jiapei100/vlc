@@ -5,7 +5,6 @@
  * Copyright © 2007-2011 Mirsal Ennaime
  * Copyright © 2009-2011 The VideoLAN team
  * Copyright © 2013      Alex Merry
- * $Id$
  *
  * Authors:    Mirsal Ennaime <mirsal at mirsal fr>
  *             Rafaël Carré <funman at videolanorg>
@@ -35,7 +34,7 @@
 #include <vlc_input.h>
 #include <vlc_vout.h>
 #include <vlc_plugin.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 
 #include <unistd.h>
 #include <limits.h>
@@ -94,9 +93,7 @@ MarshalCanSetFullscreen( intf_thread_t *p_intf, DBusMessageIter *container )
 
     if (p_intf->p_sys->p_input)
     {
-        p_input = (input_thread_t*) vlc_object_hold( p_intf->p_sys->p_input );
-        vout_thread_t* p_vout = input_GetVout( p_input );
-        vlc_object_release( p_input );
+        vout_thread_t* p_vout = input_GetVout( p_intf->p_sys->p_input );
 
         if ( p_vout )
         {
@@ -139,9 +136,7 @@ DBUS_METHOD( FullscreenSet )
 
     if (INTF->p_sys->p_input)
     {
-        p_input = (input_thread_t*) vlc_object_hold( INTF->p_sys->p_input );
-        vout_thread_t* p_vout = input_GetVout( p_input );
-        vlc_object_release( p_input );
+        vout_thread_t* p_vout = input_GetVout( INTF->p_sys->p_input );
 
         if ( p_vout )
             var_SetBool( p_vout, "fullscreen", ( b_fullscreen == TRUE ) );
@@ -261,7 +256,7 @@ MarshalSupportedUriSchemes( intf_thread_t *p_intf, DBusMessageIter *container )
 DBUS_METHOD( Quit )
 { /* exits vlc */
     REPLY_INIT;
-    libvlc_Quit(INTF->obj.libvlc);
+    libvlc_Quit(vlc_object_instance(INTF));
     REPLY_SEND;
 }
 
@@ -397,8 +392,6 @@ DBUS_METHOD( GetAllProperties )
         dbus_error_free( &error );
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
-
-    msg_Dbg( (vlc_object_t*) p_this, "Getting All properties" );
 
     if( !dbus_message_iter_open_container( &args, DBUS_TYPE_ARRAY, "{sv}", &dict ) )
         return DBUS_HANDLER_RESULT_NEED_MEMORY;

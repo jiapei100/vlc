@@ -2,7 +2,6 @@
  * input_slider.cpp : VolumeSlider and SeekSlider
  ****************************************************************************
  * Copyright (C) 2006-2011 the VideoLAN team
- * $Id$
  *
  * Authors: Clément Stenac <zorglub@videolan.org>
  *          Jean-Baptiste Kempf <jb@videolan.org>
@@ -200,7 +199,7 @@ void SeekSlider::setChapters( SeekPoints *chapters_ )
  * \param time Elapsed time. Unused
  * \param legnth Duration time.
  ***/
-void SeekSlider::setPosition( float pos, int64_t time, int length )
+void SeekSlider::setPosition( float pos, vlc_tick_t time, int length )
 {
     VLC_UNUSED(time);
     if( pos == -1.0  || ! b_seekable )
@@ -403,8 +402,8 @@ void SeekSlider::wheelEvent( QWheelEvent *event )
     /* Don't do anything if we are for somehow reason sliding */
     if( !isSliding && isEnabled() )
     {
-        int64_t i_size = var_InheritInteger( p_intf->obj.libvlc, "short-jump-size" );
-        int i_mode = var_InheritInteger( p_intf->obj.libvlc, "hotkeys-x-wheel-mode" );
+        int64_t i_size = var_InheritInteger( vlc_object_instance(p_intf), "short-jump-size" );
+        int i_mode = var_InheritInteger( vlc_object_instance(p_intf), "hotkeys-x-wheel-mode" );
         if ( ( event->delta() < 0 && i_mode != 3 ) || ( event->delta() > 0 && i_mode == 3 ) )
             i_size = - i_size;
         float posOffset = static_cast<float>( i_size ) / static_cast<float>( inputLength );

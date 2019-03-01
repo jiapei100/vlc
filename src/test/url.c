@@ -2,7 +2,6 @@
  * url.c: Test for url encoding/decoding stuff
  *****************************************************************************
  * Copyright (C) 2006 Rémi Denis-Courmont
- * $Id$
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -38,18 +37,20 @@ static void test_compare(const char *in, const char *exp, const char *res)
     if (res == NULL)
     {
         if (exp != NULL)
-            fprintf(stderr, "\"%s\" returned NULL, expected \"%s\"", in, exp);
+            fprintf(stderr, "\"%s\" returned NULL, expected \"%s\"\n",
+                    in, exp);
         else
             return;
     }
     else
     {
         if (exp == NULL)
-            fprintf(stderr, "\"%s\" returned \"%s\", expected NULL", in, res);
+            fprintf(stderr, "\"%s\" returned \"%s\", expected NULL\n",
+                    in, res);
         else
         if (strcmp(res, exp))
-            fprintf(stderr, "\"%s\" returned \"%s\", expected \"%s\"\n", in,
-                    res, exp);
+            fprintf(stderr, "\"%s\" returned \"%s\", expected \"%s\"\n",
+                    in, res, exp);
         else
             return;
     }
@@ -119,13 +120,13 @@ static void test_url_parse(const char *in, const char *protocol,
         return;
     }
 
-    test_compare(in, url.psz_protocol, protocol);
-    test_compare(in, url.psz_username, user);
-    test_compare(in, url.psz_password, pass);
+    test_compare(in, protocol, url.psz_protocol);
+    test_compare(in, user, url.psz_username);
+    test_compare(in, pass, url.psz_password);
 
     if (ret != 0 && errno == ENOSYS)
     {
-        test_compare(in, url.psz_host, NULL);
+        test_compare(in, NULL, url.psz_host);
         exitcode = 77;
     }
     else
@@ -138,8 +139,8 @@ static void test_url_parse(const char *in, const char *protocol,
         exit(2);
     }
 
-    test_compare(in, url.psz_path, path);
-    test_compare(in, url.psz_option, option);
+    test_compare(in, path, url.psz_path);
+    test_compare(in, option, url.psz_option);
     vlc_UrlClean(&url);
 }
 
@@ -183,6 +184,7 @@ int main (void)
     test_b64 ("foobar", "Zm9vYmFy");
 
     /* Path test */
+    test_path("", NULL);
 #ifndef _WIN32
     test_path ("/", "file:///");
     test_path ("/home/john/", "file:///home/john/");
@@ -218,7 +220,6 @@ int main (void)
 
     test_current_directory_path ("movie.ogg", tmpdir, "movie.ogg");
     test_current_directory_path (".", tmpdir, ".");
-    test_current_directory_path ("", tmpdir, "");
 #endif
 
     /*val = fchdir (fd);
@@ -305,6 +306,8 @@ int main (void)
     test_url_parse("http://example.com:-123", NULL, NULL, NULL, NULL, 0, NULL, NULL );
     test_url_parse("http://example.com:-4294967298", NULL, NULL, NULL, NULL, 0, NULL, NULL );
     test_url_parse("http://example.com:-18446744073709551615", NULL, NULL, NULL, NULL, 0, NULL, NULL );
+    test_url_parse("http://user%/Oath", "http", NULL, NULL, NULL, 0, "/Oath",
+                   NULL);
 
     /* Reference test cases for reference URI resolution */
     static const char *rfc3986_cases[] =

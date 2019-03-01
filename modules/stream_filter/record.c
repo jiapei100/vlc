@@ -2,7 +2,6 @@
  * record.c
  *****************************************************************************
  * Copyright (C) 2008 Laurent Aimar
- * $Id$
  *
  * Author: Laurent Aimar <fenrir _AT_ videolan _DOT_ org>
  *
@@ -196,7 +195,7 @@ static int Start( stream_t *s, const char *psz_extension )
     }
 
     /* signal new record file */
-    var_SetString( s->obj.libvlc, "record-file", psz_file );
+    var_SetString( vlc_object_instance(s), "record-file", psz_file );
 
     msg_Dbg( s, "Recording into %s", psz_file );
     free( psz_file );

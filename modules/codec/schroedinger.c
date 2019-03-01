@@ -603,7 +603,7 @@ static void SetVideoFormat( decoder_t *p_dec )
     p_sys->p_format = schro_decoder_get_video_format(p_sys->p_schro);
     if( p_sys->p_format == NULL ) return;
 
-    p_sys->i_frame_pts_delta = CLOCK_FREQ
+    p_sys->i_frame_pts_delta = VLC_TICK_FROM_SEC(1)
                             * p_sys->p_format->frame_rate_denominator
                             / p_sys->p_format->frame_rate_numerator;
 
@@ -907,8 +907,8 @@ typedef struct
     block_t *p_chain;
 
     struct picture_pts_t pts_tlb[SCHRO_PTS_TLB_SIZE];
-    unsigned i_pts_offset;
-    unsigned i_field_duration;
+    vlc_tick_t i_pts_offset;
+    vlc_tick_t i_field_duration;
 
     bool b_eos_signalled;
     bool b_eos_pulled;
@@ -994,7 +994,7 @@ static vlc_tick_t GetPicturePTS( encoder_t *p_enc, uint32_t u_pnum )
     }
 
     msg_Err( p_enc, "Could not retrieve PTS for picture %u", u_pnum );
-    return 0;
+    return VLC_TICK_INVALID;
 }
 
 static inline bool SchroSetEnum( const encoder_t *p_enc, int i_list_size, const char *list[],
@@ -1575,7 +1575,7 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pic )
             if( ReadDiracPictureNumber( &u_pic_num, p_block ) ) {
                 block_t *p_dts_block = block_FifoGet( p_sys->p_dts_fifo );
                 p_block->i_dts = p_dts_block->i_dts;
-                   p_block->i_pts = GetPicturePTS( p_enc, u_pic_num );
+                p_block->i_pts = GetPicturePTS( p_enc, u_pic_num );
                 block_Release( p_dts_block );
                 block_ChainAppend( &p_output_chain, p_block );
             } else {

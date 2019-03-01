@@ -2,7 +2,6 @@
  * demux.hpp : matroska demuxer
  *****************************************************************************
  * Copyright (C) 2003-2004 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Steve Lhomme <steve.lhomme@free.fr>
@@ -54,14 +53,14 @@ public:
         ,i_updates(0)
         ,p_current_vsegment(NULL)
         ,dvd_interpretor( *this )
-        ,f_duration(-1.0)
+        ,i_duration(-1)
         ,p_input(NULL)
         ,ev(&demux)
     {
         vlc_mutex_init( &lock_demuxer );
     }
 
-    virtual ~demux_sys_t();
+    ~demux_sys_t();
 
     /* current data */
     demux_t                 & demuxer;
@@ -89,7 +88,7 @@ public:
     dvd_command_interpretor_c        dvd_interpretor;
 
     /* duration of the stream */
-    float                   f_duration;
+    vlc_tick_t              i_duration;
 
     matroska_segment_c *FindSegment( const EbmlBinary & uid ) const;
     virtual_chapter_c *BrowseCodecPrivate( unsigned int codec_id,

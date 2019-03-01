@@ -45,7 +45,7 @@
 JNIEnv *android_getEnv(vlc_object_t *p_obj, const char *psz_thread_name);
 
 #define OPENSLES_BUFFERS 255 /* maximum number of buffers */
-#define OPENSLES_BUFLEN  10   /* ms */
+#define OPENSLES_BUFLEN  VLC_TICK_FROM_MS(10)
 /*
  * 10ms of precision when mesasuring latency should be enough,
  * with 255 buffers we can buffer 2.55s of audio.
@@ -168,8 +168,8 @@ static int TimeGet(audio_output_t* aout, vlc_tick_t* restrict drift)
     if (!started)
         return -1;
 
-    *drift = (CLOCK_FREQ * OPENSLES_BUFLEN * st.count / 1000)
-        + sys->samples * CLOCK_FREQ / sys->rate;
+    *drift = OPENSLES_BUFLEN * st.count
+        + vlc_tick_from_samples(sys->samples, sys->rate);
 
     /* msg_Dbg(aout, "latency %"PRId64" ms, %d/%d buffers", *drift / 1000,
         (int)st.count, OPENSLES_BUFFERS); */
@@ -463,7 +463,7 @@ static int Start(audio_output_t *aout, audio_sample_format_t *restrict fmt)
 
     /* XXX: rounding shouldn't affect us at normal sampling rate */
     sys->rate = fmt->i_rate;
-    sys->samples_per_buf = OPENSLES_BUFLEN * fmt->i_rate / 1000;
+    sys->samples_per_buf = samples_from_vlc_tick(OPENSLES_BUFLEN, fmt->i_rate);
     sys->buf = vlc_alloc(sys->samples_per_buf * bytesPerSample(), OPENSLES_BUFFERS);
     if (!sys->buf)
         goto error;
@@ -480,7 +480,7 @@ static int Start(audio_output_t *aout, audio_sample_format_t *restrict fmt)
     fmt->i_physical_channels   = AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT;
     fmt->channel_type = AUDIO_CHANNEL_TYPE_BITMAP;
 
-    SetPositionUpdatePeriod(sys->playerPlay, AOUT_MIN_PREPARE_TIME * 1000 / CLOCK_FREQ);
+    SetPositionUpdatePeriod(sys->playerPlay, MS_FROM_VLC_TICK(AOUT_MIN_PREPARE_TIME));
 
     aout_FormatPrepare(fmt);
 

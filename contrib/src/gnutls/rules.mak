@@ -1,7 +1,7 @@
 # GnuTLS
 
-GNUTLS_VERSION := 3.5.18
-GNUTLS_URL := ftp://ftp.gnutls.org/gcrypt/gnutls/v3.5/gnutls-$(GNUTLS_VERSION).tar.xz
+GNUTLS_VERSION := 3.6.6
+GNUTLS_URL := https://www.gnupg.org/ftp/gcrypt/gnutls/v3.6/gnutls-$(GNUTLS_VERSION).tar.xz
 
 ifdef BUILD_NETWORK
 ifndef HAVE_DARWIN_OS
@@ -22,21 +22,10 @@ gnutls: gnutls-$(GNUTLS_VERSION).tar.xz .sum-gnutls
 	$(APPLY) $(SRC)/gnutls/gnutls-pkgconfig-static.patch
 ifdef HAVE_WIN32
 	$(APPLY) $(SRC)/gnutls/gnutls-win32.patch
-	$(APPLY) $(SRC)/gnutls/gnutls-loadlibrary.patch
-ifdef HAVE_WINSTORE
-	$(APPLY) $(SRC)/gnutls/gnutls-winrt.patch
-	$(APPLY) $(SRC)/gnutls/winrt-topendir.patch
-endif
 endif
 ifdef HAVE_ANDROID
 	$(APPLY) $(SRC)/gnutls/no-create-time-h.patch
 endif
-	$(APPLY) $(SRC)/gnutls/read-file-limits.h.patch
-ifdef HAVE_MACOSX
-	$(APPLY) $(SRC)/gnutls/gnutls-disable-getentropy-osx.patch
-	$(APPLY) $(SRC)/gnutls/gnutls-disable-connectx-macos.patch
-endif
-	$(APPLY) $(SRC)/gnutls/gnutls-libidn.patch
 	$(call pkg_static,"lib/gnutls.pc.in")
 	$(UPDATE_AUTOCONFIG)
 	$(MOVE)
@@ -46,9 +35,7 @@ GNUTLS_CONF := \
 	--without-p11-kit \
 	--disable-cxx \
 	--disable-srp-authentication \
-	--disable-psk-authentication-FIXME \
 	--disable-anon-authentication \
-	--disable-openpgp-authentication \
 	--disable-openssl-compatibility \
 	--disable-guile \
 	--disable-nls \
@@ -75,9 +62,9 @@ ifeq ($(ARCH),x86_64)
 endif
 endif
 ifdef HAVE_WIN32
-	GNUTLS_CONF += --without-libidn2
+	GNUTLS_CONF += --without-idn
 ifdef HAVE_CLANG
-ifneq ($(findstring $(ARCH), x86_64 aarch64),)
+ifeq ($(ARCH),aarch64)
 	GNUTLS_CONF += --disable-hardware-acceleration
 endif
 endif
@@ -88,7 +75,6 @@ ifdef HAVE_NACL
 endif
 
 .gnutls: gnutls
-	$(RECONF)
 	cd $< && $(GNUTLS_ENV) ./configure $(GNUTLS_CONF)
 	cd $< && $(MAKE) -C gl install
 	cd $< && $(MAKE) -C lib install

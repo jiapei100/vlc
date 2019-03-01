@@ -2,7 +2,6 @@
  * misc.c
  *****************************************************************************
  * Copyright (C) 2007-2008 the VideoLAN team
- * $Id$
  *
  * Authors: Antoine Cellerier <dionoea at videolan tod org>
  *          Pierre d'Herbemont <pdherbemont # videolan.org>
@@ -124,7 +123,7 @@ static int vlclua_quit( lua_State *L )
     vlc_object_t *p_this = vlclua_get_this( L );
     /* The rc.c code also stops the playlist ... not sure if this is needed
      * though. */
-    libvlc_Quit( p_this->obj.libvlc );
+    libvlc_Quit( vlc_object_instance(p_this) );
     return 0;
 }
 

@@ -129,14 +129,12 @@ static HRESULT TimeGet(aout_stream_t *s, vlc_tick_t *restrict delay)
         return hr;
     }
 
-    lldiv_t w = lldiv(sys->written, sys->rate);
-    lldiv_t r = lldiv(pos, freq);
+    vlc_tick_t written = vlc_tick_from_frac(sys->written, sys->rate);
+    vlc_tick_t tick_pos = vlc_tick_from_frac(pos, freq);
 
     static_assert((10000000 % CLOCK_FREQ) == 0, "Frequency conversion broken");
 
-    *delay = vlc_tick_from_sec(w.quot - r.quot)
-           + (vlc_tick_from_sec(w.rem) / sys->rate)
-           - (vlc_tick_from_sec(r.rem) / freq)
+    *delay = written - tick_pos
            - VLC_TICK_FROM_MSFTIME(GetQPC() - qpcpos);
 
     return hr;
@@ -482,7 +480,7 @@ static HRESULT Start(aout_stream_t *s, audio_sample_format_t *restrict pfmt,
 
     if (fmt.i_format == VLC_CODEC_DTS)
     {
-        b_dtshd = var_GetBool(s->obj.parent, "dtshd");
+        b_dtshd = var_GetBool(vlc_object_parent(s), "dtshd");
         if (b_dtshd)
         {
             b_hdmi = true;
@@ -555,7 +553,7 @@ static HRESULT Start(aout_stream_t *s, audio_sample_format_t *restrict pfmt,
                      "fallback to 48kHz (S/PDIF) (error 0x%lx)", hr);
             IAudioClient_Release(sys->client);
             free(sys);
-            var_SetBool(s->obj.parent, "dtshd", false);
+            var_SetBool(vlc_object_parent(s), "dtshd", false);
             return Start(s, pfmt, sid);
         }
         msg_Err(s, "cannot negotiate audio format (error 0x%lx)%s", hr,

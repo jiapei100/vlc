@@ -2,7 +2,6 @@
  * variables.c: routines for object variables handling
  *****************************************************************************
  * Copyright (C) 2002-2009 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Samuel Hocevar <sam@zoy.org>
  *
@@ -777,6 +776,7 @@ static void AddCallback( vlc_object_t *p_this, const char *psz_name,
         vlc_mutex_unlock( &p_priv->var_lock );
         msg_Err( p_this, "cannot add callback %p to nonexistent variable '%s'",
                  entry->p_callback, psz_name );
+        free( entry );
         return;
     }
 
@@ -968,7 +968,18 @@ void var_OptionParse( vlc_object_t *p_obj, const char *psz_option,
     switch( i_type )
     {
     case VLC_VAR_BOOL:
-        val.b_bool = !b_isno;
+        if( psz_value )
+        {
+            char *endptr;
+            long long int value = strtoll( psz_value, &endptr, 0 );
+            if( endptr == psz_value ) /* Not an integer */
+                val.b_bool = strcasecmp( psz_value, "true" ) == 0
+                          || strcasecmp( psz_value, "yes" ) == 0;
+            else
+                val.b_bool = value != 0;
+        }
+        else
+            val.b_bool = !b_isno;
         break;
 
     case VLC_VAR_INTEGER:
@@ -1026,7 +1037,7 @@ int var_Inherit( vlc_object_t *p_this, const char *psz_name, int i_type,
                  vlc_value_t *p_val )
 {
     i_type &= VLC_VAR_CLASS;
-    for( vlc_object_t *obj = p_this; obj != NULL; obj = obj->obj.parent )
+    for (vlc_object_t *obj = p_this; obj != NULL; obj = vlc_object_parent(obj))
     {
         if( var_GetChecked( obj, psz_name, i_type, p_val ) == VLC_SUCCESS )
             return VLC_SUCCESS;

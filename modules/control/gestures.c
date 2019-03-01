@@ -2,7 +2,6 @@
  * gestures.c: control vlc with mouse gestures
  *****************************************************************************
  * Copyright (C) 2004-2009 the VideoLAN team
- * $Id$
  *
  * Authors: Sigmund Augdal Helberg <dnumgis@videolan.org>
  *
@@ -34,7 +33,7 @@
 #include <vlc_plugin.h>
 #include <vlc_interface.h>
 #include <vlc_vout.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 #include <vlc_input.h>
 #include <assert.h>
 
@@ -357,7 +356,7 @@ static void ProcessGesture( intf_thread_t *p_intf )
 
         case GESTURE(DOWN,LEFT,NONE,NONE):
             /* FIXME: Should close the vout!"*/
-            libvlc_Quit( p_intf->obj.libvlc );
+            libvlc_Quit( vlc_object_instance(p_intf) );
             break;
 
         case GESTURE(DOWN,LEFT,UP,RIGHT):

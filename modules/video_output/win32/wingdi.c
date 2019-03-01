@@ -2,7 +2,6 @@
  * wingdi.c : Win32 / WinCE GDI video output plugin for vlc
  *****************************************************************************
  * Copyright (C) 2002-2009 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Gildas Bazin <gbazin@videolan.org>
  *          Samuel Hocevar <sam@zoy.org>
@@ -38,12 +37,14 @@
 #include <windows.h>
 
 #include "common.h"
+#include "../video_chroma/copy.h"
 
 /*****************************************************************************
  * Module descriptor
  *****************************************************************************/
-static int  Open (vlc_object_t *);
-static void Close(vlc_object_t *);
+static int  Open (vout_display_t *, const vout_display_cfg_t *,
+                  video_format_t *, vlc_video_context *);
+static void Close(vout_display_t *);
 
 vlc_module_begin ()
     set_category(CAT_VIDEO)
@@ -68,6 +69,9 @@ struct vout_display_sys_t
     HDC        off_dc;
     HBITMAP    off_bitmap;
 
+    void    *p_pic_buffer;
+    int     i_pic_pitch;
+
     struct
     {
         BITMAPINFO bitmapinfo;
@@ -77,17 +81,26 @@ struct vout_display_sys_t
     };
 };
 
-static picture_pool_t *Pool  (vout_display_t *, unsigned);
-static void           Display(vout_display_t *, picture_t *, subpicture_t *subpicture);
-static int            Control(vout_display_t *, int, va_list);
+static void           Display(vout_display_t *, picture_t *);
 
 static int            Init(vout_display_t *, video_format_t *);
 static void           Clean(vout_display_t *);
 
-/* */
-static int Open(vlc_object_t *object)
+static void Prepare(vout_display_t *vd, picture_t *picture, subpicture_t *subpic,
+                    vlc_tick_t date)
 {
-    vout_display_t *vd = (vout_display_t *)object;
+    VLC_UNUSED(subpic);
+    VLC_UNUSED(date);
+    vout_display_sys_t *sys = vd->sys;
+    picture_t fake_pic = *picture;
+    picture_UpdatePlanes(&fake_pic, sys->p_pic_buffer, sys->i_pic_pitch);
+    picture_CopyPixels(&fake_pic, picture);
+}
+
+/* */
+static int Open(vout_display_t *vd, const vout_display_cfg_t *cfg,
+                video_format_t *fmtp, vlc_video_context *context)
+{
     vout_display_sys_t *sys;
 
     if ( !vd->obj.force && vd->source.projection_mode != PROJECTION_MODE_RECTANGULAR)
@@ -97,39 +110,29 @@ static int Open(vlc_object_t *object)
     if (!sys)
         return VLC_ENOMEM;
 
-    if (CommonInit(vd))
+    if (CommonInit(vd, false, cfg))
         goto error;
 
     /* */
-    video_format_t fmt = vd->fmt;
-    if (Init(vd, &fmt))
+    if (Init(vd, fmtp))
         goto error;
 
-    vout_display_info_t info = vd->info;
-    info.is_slow              = false;
-    info.has_double_click     = true;
-    info.has_pictures_invalid = true;
-
     /* */
-    vd->fmt  = fmt;
-    vd->info = info;
+    vd->info.has_double_click     = true;
 
-    vd->pool    = Pool;
-    vd->prepare = NULL;
+    vd->prepare = Prepare;
     vd->display = Display;
-    vd->control = Control;
+    vd->control = CommonControl;
     return VLC_SUCCESS;
 
 error:
-    Close(VLC_OBJECT(vd));
+    Close(vd);
     return VLC_EGENERIC;
 }
 
 /* */
-static void Close(vlc_object_t *object)
+static void Close(vout_display_t *vd)
 {
-    vout_display_t *vd = (vout_display_t *)object;
-
     Clean(vd);
 
     CommonClean(vd);
@@ -137,16 +140,10 @@ static void Close(vlc_object_t *object)
     free(vd->sys);
 }
 
-/* */
-static picture_pool_t *Pool(vout_display_t *vd, unsigned count)
-{
-    VLC_UNUSED(count);
-    return vd->sys->sys.pool;
-}
-
-static void Display(vout_display_t *vd, picture_t *picture, subpicture_t *subpicture)
+static void Display(vout_display_t *vd, picture_t *picture)
 {
     vout_display_sys_t *sys = vd->sys;
+    VLC_UNUSED(picture);
 
 #define rect_src vd->sys->rect_src
 #define rect_src_clipped vd->sys->sys.rect_src_clipped
@@ -181,24 +178,9 @@ static void Display(vout_display_t *vd, picture_t *picture, subpicture_t *subpic
 #undef rect_src_clipped
 #undef rect_dest
 #undef rect_dest_clipped
-    /* TODO */
-    picture_Release(picture);
-    VLC_UNUSED(subpicture);
 
     CommonDisplay(vd);
     CommonManage(vd);
-}
-
-static int Control(vout_display_t *vd, int query, va_list args)
-{
-    switch (query) {
-    case VOUT_DISPLAY_RESET_PICTURES:
-        vlc_assert_unreachable();
-        return VLC_EGENERIC;
-    default:
-        return CommonControl(vd, query, args);
-    }
-
 }
 
 static int Init(vout_display_t *vd, video_format_t *fmt)
@@ -256,8 +238,6 @@ static int Init(vout_display_t *vd, video_format_t *fmt)
         return VLC_EGENERIC;
     }
 
-    void *p_pic_buffer;
-    int     i_pic_pitch;
     /* Initialize offscreen bitmap */
     BITMAPINFO *bi = &sys->bitmapinfo;
     memset(bi, 0, sizeof(BITMAPINFO) + 3 * sizeof(RGBQUAD));
@@ -281,33 +261,21 @@ static int Init(vout_display_t *vd, video_format_t *fmt)
     bih->biXPelsPerMeter = 0;
     bih->biYPelsPerMeter = 0;
 
-    i_pic_pitch = bih->biBitCount * bih->biWidth / 8;
+    sys->i_pic_pitch = bih->biBitCount * bih->biWidth / 8;
     sys->off_bitmap = CreateDIBSection(window_dc,
                                        (BITMAPINFO *)bih,
                                        DIB_RGB_COLORS,
-                                       &p_pic_buffer, NULL, 0);
+                                       &sys->p_pic_buffer, NULL, 0);
 
     sys->off_dc = CreateCompatibleDC(window_dc);
 
     SelectObject(sys->off_dc, sys->off_bitmap);
     ReleaseDC(sys->sys.hvideownd, window_dc);
 
-    EventThreadUpdateTitle(sys->sys.event, VOUT_TITLE " (WinGDI output)");
+    if (!sys->sys.b_windowless)
+        EventThreadUpdateTitle(sys->sys.event, VOUT_TITLE " (WinGDI output)");
 
-    /* */
-    picture_resource_t rsc;
-    memset(&rsc, 0, sizeof(rsc));
-    rsc.p[0].p_pixels = p_pic_buffer;
-    rsc.p[0].i_lines  = fmt->i_height;
-    rsc.p[0].i_pitch  = i_pic_pitch;;
-
-    picture_t *picture = picture_NewFromResource(fmt, &rsc);
-    if (picture != NULL)
-        sys->sys.pool = picture_pool_New(1, &picture);
-    else
-        sys->sys.pool = NULL;
-
-    UpdateRects(vd, NULL, true);
+    UpdateRects(vd, true);
 
     return VLC_SUCCESS;
 }
@@ -315,10 +283,6 @@ static int Init(vout_display_t *vd, video_format_t *fmt)
 static void Clean(vout_display_t *vd)
 {
     vout_display_sys_t *sys = vd->sys;
-
-    if (sys->sys.pool)
-        picture_pool_Release(sys->sys.pool);
-    sys->sys.pool = NULL;
 
     if (sys->off_dc)
         DeleteDC(sys->off_dc);

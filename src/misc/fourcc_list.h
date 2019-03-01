@@ -810,10 +810,22 @@ static const staticentry_t p_list_video[] = {
         A("Y800"),
         A("Y8  "),
 
-    B(VLC_CODEC_GREY_16L, "16 bits greyscale"),
+    B(VLC_CODEC_GREY_10L, "10 bits greyscale LE"),
+        A("G0FL"),
+
+    B(VLC_CODEC_GREY_10B, "10 bits greyscale BE"),
+        A("G0FB"),
+
+    B(VLC_CODEC_GREY_12L, "12 bits greyscale LE"),
+        A("G2FL"),
+
+    B(VLC_CODEC_GREY_12B, "12 bits greyscale BE"),
+        A("G2FB"),
+
+    B(VLC_CODEC_GREY_16L, "16 bits greyscale LE"),
         A("GRFL"),
 
-    B(VLC_CODEC_GREY_16B, "16 bits greyscale"),
+    B(VLC_CODEC_GREY_16B, "16 bits greyscale BE"),
         A("GRFB"),
 
     B(VLC_CODEC_UYVY, "Packed YUV 4:2:2, U:Y:V:Y"),
@@ -1154,6 +1166,48 @@ static const staticentry_t p_list_video[] = {
 
     B(VLC_CODEC_IMM4, "Infinity IMM4"),
         A("IMM4"),
+
+    B(VLC_CODEC_VDPAU_VIDEO_420, "4:2:0 VDPAU opaque"),
+        A("VDV0"),
+
+    B(VLC_CODEC_VDPAU_VIDEO_422, "4:2:2 VDPAU opaque"),
+        A("VDV2"),
+
+    B(VLC_CODEC_VDPAU_VIDEO_444, "4:4:4 VDPAU opaque"),
+        A("VDV4"),
+
+    B(VLC_CODEC_VDPAU_OUTPUT, "VDPAU opaque"),
+        A("VDVR"),
+
+    B(VLC_CODEC_VAAPI_420, "4:2:0 VAAPI opaque"),
+        A("VAOP"),
+
+    B(VLC_CODEC_VAAPI_420_10BPP, "4:2:0 10bits VAAPI opaque"),
+        A("VAO0"),
+
+    B(VLC_CODEC_ANDROID_OPAQUE, "Android opaque"),
+        A("ANOP"),
+
+    B(VLC_CODEC_MMAL_OPAQUE, "MMAL opaque"),
+        A("MMAL"),
+
+    B(VLC_CODEC_D3D9_OPAQUE, "4:2:0 D3D9 opaque"),
+        A("DXA9"),
+
+    B(VLC_CODEC_D3D9_OPAQUE_10B, "4:2:0 10bits D3D9 opaque"),
+        A("DXA0"),
+
+    B(VLC_CODEC_D3D11_OPAQUE, "4:2:0 D3D11 opaque"),
+        A("DX11"),
+
+    B(VLC_CODEC_D3D11_OPAQUE_10B, "4:2:0 10bits D3D11 opaque"),
+        A("DX10"),
+
+    B(VLC_CODEC_D3D11_OPAQUE_RGBA, "RGBA D3D11 opaque"),
+        A("DXRG"),
+
+    B(VLC_CODEC_D3D11_OPAQUE_BGRA, "BGRA D3D11 opaque"),
+        A("DAGR"),
 };
 
 static const staticentry_t p_list_audio[] = {

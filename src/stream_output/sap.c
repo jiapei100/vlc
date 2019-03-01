@@ -2,7 +2,6 @@
  * sap.c : SAP announce handler
  *****************************************************************************
  * Copyright (C) 2002-2008 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Clément Stenac <zorglub@videolan.org>
  *          Rémi Denis-Courmont <rem # videolan.org>
@@ -153,7 +152,7 @@ noreturn static void *RunThread (void *self)
         for (p_session = addr->first; p_session; p_session = p_session->next)
         {
             send (addr->fd, p_session->data, p_session->length, 0);
-            deadline += addr->interval * CLOCK_FREQ / addr->session_count;
+            deadline += vlc_tick_from_samples(addr->interval, addr->session_count);
 
             if (vlc_cond_timedwait (&addr->wait, &addr->lock, deadline) == 0)
                 break; /* list may have changed! */

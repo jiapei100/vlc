@@ -87,6 +87,14 @@ void vlc_ml_event_unregister_callback( vlc_medialibrary_t* p_ml,
     free( p_cb );
 }
 
+void vlc_ml_event_unregister_from_callback( vlc_medialibrary_t* p_ml,
+                                            vlc_ml_event_callback_t* p_cb )
+{
+    vlc_mutex_assert( &p_ml->lock );
+    vlc_list_remove( &p_cb->node );
+    free( p_cb );
+}
+
 static const vlc_medialibrary_callbacks_t callbacks = {
     .pf_send_event = &vlc_ml_event_send
 };
@@ -122,7 +130,7 @@ void libvlc_MlRelease( vlc_medialibrary_t* p_ml )
 #undef vlc_ml_instance_get
 vlc_medialibrary_t* vlc_ml_instance_get( vlc_object_t* p_obj )
 {
-    libvlc_priv_t* p_priv = libvlc_priv( p_obj->obj.libvlc );
+    libvlc_priv_t* p_priv = libvlc_priv( vlc_object_instance(p_obj) );
     return p_priv->p_media_library;
 }
 

@@ -364,7 +364,8 @@ bool PlaylistManager::setPosition(vlc_tick_t time)
 
 bool PlaylistManager::needsUpdate() const
 {
-    return playlist->isLive() && (failedupdates < 3);
+    return playlist->needsUpdates() &&
+           playlist->isLive() && (failedupdates < 3);
 }
 
 void PlaylistManager::scheduleNextUpdate()
@@ -528,7 +529,7 @@ int PlaylistManager::doControl(int i_query, va_list args)
         case DEMUX_GET_TIME:
         {
             vlc_mutex_locker locker(&cached.lock);
-            *(va_arg (args, int64_t *)) = cached.i_time;
+            *(va_arg (args, vlc_tick_t *)) = cached.i_time;
             break;
         }
 
@@ -537,7 +538,7 @@ int PlaylistManager::doControl(int i_query, va_list args)
             vlc_mutex_locker locker(&cached.lock);
             if(cached.b_live)
                 return VLC_EGENERIC;
-            *(va_arg (args, int64_t *)) = cached.i_length;
+            *(va_arg (args, vlc_tick_t *)) = cached.i_length;
             break;
         }
 
@@ -584,7 +585,7 @@ int PlaylistManager::doControl(int i_query, va_list args)
                 return VLC_EGENERIC;
             }
 
-            int64_t time = va_arg(args, int64_t);// + getFirstPlaybackTime();
+            vlc_tick_t time = va_arg(args, vlc_tick_t);// + getFirstPlaybackTime();
             if(!setPosition(time))
             {
                 setBufferingRunState(true);

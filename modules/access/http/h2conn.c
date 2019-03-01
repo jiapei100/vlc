@@ -551,12 +551,9 @@ static const struct vlc_h2_parser_cbs vlc_h2_parser_callbacks =
  */
 static ssize_t vlc_https_recv(vlc_tls_t *tls, void *buf, size_t len)
 {
-    struct pollfd ufd;
     struct iovec iov;
     size_t count = 0;
 
-    ufd.fd = vlc_tls_GetFD(tls);
-    ufd.events = POLLIN;
     iov.iov_base = buf;
     iov.iov_len = len;
 
@@ -581,6 +578,10 @@ static ssize_t vlc_https_recv(vlc_tls_t *tls, void *buf, size_t len)
         if (errno != EINTR && errno != EAGAIN)
             return count ? (ssize_t)count : -1;
 
+        struct pollfd ufd;
+
+        ufd.events = POLLIN;
+        ufd.fd = vlc_tls_GetPollFD(tls, &ufd.events);
         poll(&ufd, 1, -1);
     }
 
@@ -672,8 +673,10 @@ static void *vlc_h2_recv_thread(void *data)
     vlc_h2_parse_destroy(parser);
 fail:
     /* Terminate any remaining stream */
+    vlc_mutex_lock(&conn->lock);
     for (struct vlc_h2_stream *s = conn->streams; s != NULL; s = s->older)
         vlc_h2_stream_reset(s, VLC_H2_CANCEL);
+    vlc_mutex_unlock(&conn->lock);
     return NULL;
 }
 

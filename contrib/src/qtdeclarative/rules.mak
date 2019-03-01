@@ -6,7 +6,13 @@ QTDECLARATIVE_URL := http://download.qt.io/official_releases/qt/5.11/$(QTDECLARA
 DEPS_qtdeclarative += qt $(DEPS_qt)
 
 ifdef HAVE_WIN32
+ifeq ($(findstring $(ARCH), arm aarch64),)
+# There is no opengl available on windows on these architectures.
+# QtDeclarative in itself should be usable without opengl though, but
+# our current build rules requires opengl (the "particles" feature
+# is unavailable if opengl is disabled).
 PKGS += qtdeclarative
+endif
 endif
 
 ifeq ($(call need_pkg,"Qt5Quick"),)
@@ -23,16 +29,10 @@ qtdeclarative: qtdeclarative-$(QTDECLARATIVE_VERSION).tar.xz .sum-qtdeclarative
 	mv qtdeclarative-everywhere-src-$(QTDECLARATIVE_VERSION) qtdeclarative-$(QTDECLARATIVE_VERSION)
 	$(MOVE)
 
-ifdef HAVE_CROSS_COMPILE
-QMAKE=$(PREFIX)/bin/qmake
-else
-QMAKE=../qt/bin/qmake
-endif
-
 .qtdeclarative: qtdeclarative
 	# Generate Makefile & src/Makefile
-	cd $< && $(QMAKE)
-	cd $</src && $(QMAKE) -o Makefile src.pro
+	cd $< && $(PREFIX)/bin/qmake
+	cd $</src && $(PREFIX)/bin/qmake -o Makefile src.pro
 	# Build & install only what we require
 	# Invoke the build rules one at a time as some rule dependencies seem to be broken
 	cd $< && $(MAKE) -C src sub-quick-make_first-ordered

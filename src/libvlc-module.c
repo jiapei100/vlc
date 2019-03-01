@@ -2,7 +2,6 @@
  * libvlc-module.c: Options for the core (libvlc itself) module
  *****************************************************************************
  * Copyright (C) 1998-2009 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Vincent Seguin <seguin@via.ecp.fr>
  *          Samuel Hocevar <sam@zoy.org>
@@ -36,7 +35,7 @@
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_cpu.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 #include "libvlc.h"
 #include "modules/modules.h"
 
@@ -377,10 +376,6 @@ static const char *const ppsz_pos_descriptions[] =
 #define VIDEO_DECO_LONGTEXT N_( \
     "VLC can avoid creating window caption, frames, etc... around the video" \
     ", giving a \"minimal\" window.")
-
-#define VIDEO_SPLITTER_TEXT N_("Video splitter module")
-#define VIDEO_SPLITTER_LONGTEXT N_( \
-    "This adds video splitters like clone or wall" )
 
 #define VIDEO_FILTER_TEXT N_("Video filter module")
 #define VIDEO_FILTER_LONGTEXT N_( \
@@ -764,6 +759,14 @@ static const char *const ppsz_prefres[] = {
     "Look for a subtitle file in those paths too, if your subtitle " \
     "file was not found in the current directory.")
 
+#define SUB_FPS_TEXT  N_("Subtitle Frames per Second")
+#define SUB_FPS_LONGTEXT \
+    N_("Override the normal frames per second settings. ")
+
+#define SUB_DELAY_TEXT N_("Subtitle delay")
+#define SUB_DELAY_LONGTEXT \
+    N_("Apply a delay to all subtitles (in 1/10s, eg 100 means 10s).")
+
 #define SUB_FILE_TEXT N_("Use subtitle file")
 #define SUB_FILE_LONGTEXT N_( \
     "Load this subtitle file. To be used when autodetect cannot detect " \
@@ -927,6 +930,8 @@ static const char *const ppsz_prefres[] = {
 #define ENCODER_LONGTEXT N_( \
     "This allows you to select a list of encoders that VLC will use in " \
     "priority.")
+
+#define DEC_DEV_TEXT N_("Preferred decoder hardware device")
 
 /*****************************************************************************
  * Sout
@@ -1682,10 +1687,6 @@ vlc_module_begin ()
     add_module_list("video-filter", "video filter", NULL,
                     VIDEO_FILTER_TEXT, VIDEO_FILTER_LONGTEXT)
 
-    set_subcategory( SUBCAT_VIDEO_SPLITTER )
-    add_module_list("video-splitter", "video splitter", NULL,
-                    VIDEO_SPLITTER_TEXT, VIDEO_SPLITTER_LONGTEXT)
-    add_obsolete_string( "vout-filter" ) /* since 2.0.0 */
 #if 0
     add_string( "pixel-ratio", "1", PIXEL_RATIO_TEXT, PIXEL_RATIO_TEXT )
 #endif
@@ -1702,6 +1703,8 @@ vlc_module_begin ()
                TEXTRENDERER_TEXT, TEXTRENDERER_LONGTEXT)
 
     set_section( N_("Subtitles") , NULL )
+    add_float( "sub-fps", 0.0, SUB_FPS_TEXT, SUB_FPS_LONGTEXT, false )
+    add_integer( "sub-delay", 0, SUB_DELAY_TEXT, SUB_DELAY_LONGTEXT, false )
     add_loadfile("sub-file", NULL, SUB_FILE_TEXT, SUB_FILE_LONGTEXT)
         change_safe()
     add_bool( "sub-autodetect-file", true,
@@ -1962,6 +1965,7 @@ vlc_module_begin ()
                 CODEC_LONGTEXT, true )
     add_string( "encoder",  NULL, ENCODER_TEXT,
                 ENCODER_LONGTEXT, true )
+    add_string( "dec-dev", NULL, DEC_DEV_TEXT, NULL, true )
 
     set_subcategory( SUBCAT_INPUT_ACCESS )
     add_category_hint(N_("Input"), INPUT_CAT_LONGTEXT)
@@ -2053,8 +2057,10 @@ vlc_module_begin ()
 #ifdef HAVE_DYNAMIC_PLUGINS
     add_bool( "plugins-cache", true, PLUGINS_CACHE_TEXT,
               PLUGINS_CACHE_LONGTEXT, true )
+        change_volatile ()
     add_bool( "plugins-scan", true, PLUGINS_SCAN_TEXT,
               PLUGINS_SCAN_LONGTEXT, true )
+        change_volatile ()
     add_obsolete_string( "plugin-path" ) /* since 2.0.0 */
 #endif
     add_obsolete_string( "data-path" ) /* since 2.1.0 */
@@ -2063,7 +2069,7 @@ vlc_module_begin ()
 
     set_section( N_("Performance options"), NULL )
 
-#if defined (LIBVLC_USE_PTHREAD) && !defined (__APPLE__)
+#if defined (LIBVLC_USE_PTHREAD)
     add_bool( "rt-priority", false, RT_PRIORITY_TEXT,
               RT_PRIORITY_LONGTEXT, true )
     add_integer( "rt-offset", 0, RT_OFFSET_TEXT,

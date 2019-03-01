@@ -2,7 +2,6 @@
  * dialogs_provider.cpp : Dialog Provider
  *****************************************************************************
  * Copyright (C) 2006-2009 the VideoLAN team
- * $Id$
  *
  * Authors: Clément Stenac <zorglub@videolan.org>
  *          Jean-Baptiste Kempf <jb@videolan.org>
@@ -112,6 +111,10 @@ DialogsProvider::~DialogsProvider()
     delete videoPopupMenu;
     delete audioPopupMenu;
     delete miscPopupMenu;
+
+    /* free parentless menus  */
+    VLCMenuBar::freeRecentsMenu();
+    VLCMenuBar::freeRendererMenu();
 }
 
 QString DialogsProvider::getSaveFileName( QWidget *parent,
@@ -127,7 +130,7 @@ QString DialogsProvider::getSaveFileName( QWidget *parent,
 void DialogsProvider::quit()
 {
     b_isDying = true;
-    libvlc_Quit( p_intf->obj.libvlc );
+    libvlc_Quit( vlc_object_instance(p_intf) );
 }
 
 void DialogsProvider::customEvent( QEvent *event )
@@ -843,5 +846,5 @@ void DialogsProvider::sendKey( int key )
      }
 
      // forward key to vlc core when not a key accelerator
-     var_SetInteger( p_intf->obj.libvlc, "key-pressed", key );
+     var_SetInteger( vlc_object_instance(p_intf), "key-pressed", key );
 }

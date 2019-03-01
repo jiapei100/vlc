@@ -2,7 +2,6 @@
  * vlc_input.h: Core input structures
  *****************************************************************************
  * Copyright (C) 1999-2015 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Laurent Aimar <fenrir@via.ecp.fr>
@@ -49,7 +48,7 @@
  *****************************************************************************/
 struct seekpoint_t
 {
-    int64_t i_time_offset;
+    vlc_tick_t i_time_offset;
     char    *psz_name;
 };
 
@@ -297,27 +296,19 @@ typedef enum input_state_e
  * Input rate.
  *
  * It is an float used by the variable "rate" in the
- * range [INPUT_RATE_DEFAULT/INPUT_RATE_MAX, INPUT_RATE_DEFAULT/INPUT_RATE_MIN]
- * the default value being 1. It represents the ratio of playback speed to
+ * range [INPUT_RATE_MIN, INPUT_RATE_MAX]
+ * the default value being 1.f. It represents the ratio of playback speed to
  * nominal speed (bigger is faster).
- *
- * Internally, the rate is stored as a value in the range
- * [INPUT_RATE_MIN, INPUT_RATE_MAX].
- * internal rate = INPUT_RATE_DEFAULT / rate variable
  */
 
 /**
- * Default rate value
- */
-#define INPUT_RATE_DEFAULT  1000
-/**
  * Minimal rate value
  */
-#define INPUT_RATE_MIN        32            /* Up to 32/1 */
+#define INPUT_RATE_MIN 0.03125f
 /**
  * Maximal rate value
  */
-#define INPUT_RATE_MAX     32000            /* Up to 1/32 */
+#define INPUT_RATE_MAX 31.25f
 
 /**
  * Input events
@@ -382,14 +373,22 @@ typedef enum input_event_type_e
     /* cache" has changed */
     INPUT_EVENT_CACHE,
 
-    /* A audio_output_t object has been created/deleted by *the input* */
-    INPUT_EVENT_AOUT,
     /* A vout_thread_t object has been created/deleted by *the input* */
     INPUT_EVENT_VOUT,
 
     /* (pre-)parsing events */
     INPUT_EVENT_SUBITEMS,
 
+    /* vbi_page has changed */
+    INPUT_EVENT_VBI_PAGE,
+    /* vbi_transparent has changed */
+    INPUT_EVENT_VBI_TRANSPARENCY,
+
+    /* subs_fps has changed */
+    INPUT_EVENT_SUBS_FPS,
+
+    /* Thumbnail generation */
+    INPUT_EVENT_THUMBNAIL_READY,
 } input_event_type_e;
 
 #define VLC_INPUT_CAPABILITIES_SEEKABLE (1<<0)
@@ -404,6 +403,23 @@ struct vlc_input_event_position
     vlc_tick_t ms;
 };
 
+struct vlc_input_event_title
+{
+    enum {
+        VLC_INPUT_TITLE_NEW_LIST,
+        VLC_INPUT_TITLE_SELECTED,
+    } action;
+    union
+    {
+        struct
+        {
+            input_title_t *const *array;
+            size_t count;
+        } list;
+        size_t selected_idx;
+    };
+};
+
 struct vlc_input_event_chapter
 {
     int title;
@@ -414,6 +430,7 @@ struct vlc_input_event_program {
     enum {
         VLC_INPUT_PROGRAM_ADDED,
         VLC_INPUT_PROGRAM_DELETED,
+        VLC_INPUT_PROGRAM_UPDATED,
         VLC_INPUT_PROGRAM_SELECTED,
         VLC_INPUT_PROGRAM_SCRAMBLED,
     } action;
@@ -428,16 +445,36 @@ struct vlc_input_event_es {
     enum {
         VLC_INPUT_ES_ADDED,
         VLC_INPUT_ES_DELETED,
+        VLC_INPUT_ES_UPDATED,
         VLC_INPUT_ES_SELECTED,
         VLC_INPUT_ES_UNSELECTED,
     } action;
+    /**
+     * ES track id: only valid from the event callback, unless the id is held
+     * by the user with vlc_es_Hold(). */
+    vlc_es_id_t *id;
+    /**
+     * Title of ES track, can be updated after the VLC_INPUT_ES_UPDATED event.
+     */
     const char *title;
+    /**
+     * ES track information, can be updated after the VLC_INPUT_ES_UPDATED event.
+     */
     const es_format_t *fmt;
 };
 
 struct vlc_input_event_signal {
     float quality;
     float strength;
+};
+
+struct vlc_input_event_vout
+{
+    enum {
+        VLC_INPUT_EVENT_VOUT_ADDED,
+        VLC_INPUT_EVENT_VOUT_DELETED,
+    } action;
+    vout_thread_t *vout;
 };
 
 struct vlc_input_event
@@ -456,7 +493,7 @@ struct vlc_input_event
         /* INPUT_EVENT_LENGTH */
         vlc_tick_t length;
         /* INPUT_EVENT_TITLE */
-        int title;
+        struct vlc_input_event_title title;
         /* INPUT_EVENT_CHAPTER */
         struct vlc_input_event_chapter chapter;
         /* INPUT_EVENT_PROGRAM */
@@ -465,6 +502,8 @@ struct vlc_input_event
         struct vlc_input_event_es es;
         /* INPUT_EVENT_RECORD */
         bool record;
+        /* INPUT_EVENT_STATISTICS */
+        const struct input_stats_t *stats;
         /* INPUT_EVENT_SIGNAL */
         struct vlc_input_event_signal signal;
         /* INPUT_EVENT_AUDIO_DELAY */
@@ -473,8 +512,18 @@ struct vlc_input_event
         vlc_tick_t subtitle_delay;
         /* INPUT_EVENT_CACHE */
         float cache;
+        /* INPUT_EVENT_VOUT */
+        struct vlc_input_event_vout vout;
         /* INPUT_EVENT_SUBITEMS */
         input_item_node_t *subitems;
+        /* INPUT_EVENT_VBI_PAGE */
+        unsigned vbi_page;
+        /* INPUT_EVENT_VBI_TRANSPARENCY */
+        bool vbi_transparent;
+        /* INPUT_EVENT_SUBS_FPS */
+        float subs_fps;
+        /* INPUT_EVENT_THUMBNAIL_READY */
+        picture_t *thumbnail;
     };
 };
 
@@ -503,12 +552,6 @@ enum input_query_e
     /** Activate disc Root Menu. res=can fail */
     INPUT_NAV_MENU,
 
-    /* Meta datas */
-    INPUT_ADD_INFO,   /* arg1= char* arg2= char* arg3=...     res=can fail */
-    INPUT_REPLACE_INFOS,/* arg1= info_category_t *            res=cannot fail */
-    INPUT_MERGE_INFOS,/* arg1= info_category_t *              res=cannot fail */
-    INPUT_DEL_INFO,   /* arg1= char* arg2= char*              res=can fail */
-
     /* bookmarks */
     INPUT_GET_BOOKMARK,    /* arg1= seekpoint_t *               res=can fail */
     INPUT_GET_BOOKMARKS,   /* arg1= seekpoint_t *** arg2= int * res=can fail */
@@ -521,17 +564,13 @@ enum input_query_e
     /* titles */
     INPUT_GET_FULL_TITLE_INFO,     /* arg1=input_title_t*** arg2= int * res=can fail */
 
-    /* Attachments */
-    INPUT_GET_ATTACHMENTS, /* arg1=input_attachment_t***, arg2=int*  res=can fail */
-    INPUT_GET_ATTACHMENT,  /* arg1=input_attachment_t**, arg2=char*  res=can fail */
-
     /* On the fly input slave */
     INPUT_ADD_SLAVE,       /* arg1= enum slave_type, arg2= const char *,
                             * arg3= bool forced, arg4= bool notify,
                             * arg5= bool check_extension */
 
     /* ES */
-    INPUT_RESTART_ES,       /* arg1=int (-AUDIO/VIDEO/SPU_ES for the whole category) */
+    INPUT_RESTART_ES_BY_ID,/* arg1=int (-AUDIO/VIDEO/SPU_ES for the whole category) */
 
     /* Viewpoint */
     INPUT_UPDATE_VIEWPOINT, /* arg1=(const vlc_viewpoint_t*), arg2=bool b_absolute */
@@ -558,9 +597,9 @@ enum input_query_e
  *****************************************************************************/
 VLC_API input_thread_t * input_Create( vlc_object_t *p_parent,
                                        input_thread_events_cb event_cb, void *events_data,
-                                       input_item_t *, const char *psz_log, input_resource_t *,
+                                       input_item_t *, input_resource_t *,
                                        vlc_renderer_item_t* p_renderer ) VLC_USED;
-#define input_Create(a,b,c,d,e,f,g) input_Create(VLC_OBJECT(a),b,c,d,e,f,g)
+#define input_Create(a,b,c,d,e,f) input_Create(VLC_OBJECT(a),b,c,d,e,f)
 
 
 /**
@@ -576,6 +615,12 @@ VLC_API input_thread_t * input_Create( vlc_object_t *p_parent,
 VLC_API input_thread_t *input_CreatePreparser(vlc_object_t *obj,
                                               input_thread_events_cb events_cb,
                                               void *events_data, input_item_t *item)
+VLC_USED;
+
+VLC_API
+input_thread_t *input_CreateThumbnailer(vlc_object_t *obj,
+                                        input_thread_events_cb events_cb,
+                                        void *events_data, input_item_t *item)
 VLC_USED;
 
 VLC_API int input_Start( input_thread_t * );
@@ -703,6 +748,7 @@ VLC_API void input_DecoderDelete( decoder_t * );
 VLC_API void input_DecoderDecode( decoder_t *, block_t *, bool b_do_pace );
 VLC_API void input_DecoderDrain( decoder_t * );
 VLC_API void input_DecoderFlush( decoder_t * );
+VLC_API int  input_DecoderSetSpuHighlight( decoder_t *, const vlc_spu_highlight_t * );
 
 /**
  * This function creates a sane filename path.

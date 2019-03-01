@@ -89,7 +89,7 @@ void MetadataExtractor::populateItem( medialibrary::parser::IItem& item, input_i
                 emptyStringWrapper( vlc_meta_Get( inputItem->p_meta, pair.second ) ) );
     }
 
-    item.setDuration( inputItem->i_duration );
+    item.setDuration( MS_FROM_VLC_TICK(inputItem->i_duration) );
 
     for ( auto i = 0; i < inputItem->i_es; ++i )
     {
@@ -170,9 +170,18 @@ medialibrary::parser::Status MetadataExtractor::run( medialibrary::parser::IItem
 
     {
         vlc::threads::mutex_locker lock( ctx.m_mutex );
+        auto deadline = vlc_tick_now() + VLC_TICK_FROM_SEC( 5 );
         while ( ctx.needsProbing == false )
         {
-            ctx.m_cond.wait( ctx.m_mutex );
+            auto res = ctx.m_cond.timedwait( ctx.m_mutex, deadline );
+            if ( res != 0 )
+            {
+                msg_Dbg( m_obj, "Timed out while extracting %s metadata",
+                         item.mrl().c_str() );
+                ctx.state = ERROR_S;
+                input_Stop( ctx.input.get() );
+                break;
+            }
             if ( ctx.needsProbing == true )
             {
                 if ( ctx.state == END_S || ctx.state == ERROR_S )

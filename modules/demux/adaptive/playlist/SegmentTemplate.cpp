@@ -2,7 +2,6 @@
  * SegmentTemplate.cpp: Implement the UrlTemplate element.
  *****************************************************************************
  * Copyright (C) 1998-2007 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Hugo Beauzée-Luyssen <hugo@beauzee.fr>
  *
@@ -90,7 +89,7 @@ uint64_t MediaSegmentTemplate::getCurrentLiveTemplateNumber() const
         time_t streamstart = parentSegmentInformation->getPlaylist()->availabilityStartTime.Get();
         streamstart += parentSegmentInformation->getPeriodStart();
         stime_t elapsed = timescale.ToScaled(vlc_tick_from_sec(playbacktime - streamstart));
-        number += elapsed / dur - 2;
+        number += elapsed / dur;
     }
 
     return number;

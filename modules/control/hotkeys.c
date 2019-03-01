@@ -2,7 +2,6 @@
  * hotkeys.c: Hotkey handling for vlc
  *****************************************************************************
  * Copyright (C) 2005-2009 the VideoLAN team
- * $Id$
  *
  * Authors: Sigmund Augdal Helberg <dnumgis@videolan.org>
  *          Jean-Paul Saman <jpsaman #_at_# m2x.nl>
@@ -39,7 +38,7 @@
 #include <vlc_mouse.h>
 #include <vlc_viewpoint.h>
 #include <vlc_vout_osd.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 #include <vlc_actions.h>
 #include "math.h"
 
@@ -201,7 +200,7 @@ static int ButtonEvent( vlc_object_t *p_this, char const *psz_var,
 
     for (int i = MOUSE_BUTTON_WHEEL_UP; i <= MOUSE_BUTTON_WHEEL_RIGHT; i++)
         if (pressed & (1 << i))
-            var_SetInteger(p_intf->obj.libvlc, "key-pressed",
+            var_SetInteger(vlc_object_instance(p_intf), "key-pressed",
                            i - MOUSE_BUTTON_WHEEL_UP + KEY_MOUSEWHEELUP);
 
     return VLC_SUCCESS;
@@ -345,12 +344,12 @@ static int Open( vlc_object_t *p_this )
     p_sys->p_input = NULL;
     p_sys->vrnav.b_can_change = false;
     p_sys->vrnav.b_button_pressed = false;
-    p_sys->subtitle_delaybookmarks.i_time_audio = 0;
-    p_sys->subtitle_delaybookmarks.i_time_subtitle = 0;
+    p_sys->subtitle_delaybookmarks.i_time_audio = VLC_TICK_INVALID;
+    p_sys->subtitle_delaybookmarks.i_time_subtitle = VLC_TICK_INVALID;
 
     vlc_mutex_init( &p_sys->lock );
 
-    var_AddCallback( p_intf->obj.libvlc, "key-action", ActionEvent, p_intf );
+    var_AddCallback( vlc_object_instance(p_intf), "key-action", ActionEvent, p_intf );
 
     var_AddCallback( pl_Get(p_intf), "input-current", PlaylistEvent, p_intf );
 
@@ -367,7 +366,7 @@ static void Close( vlc_object_t *p_this )
 
     var_DelCallback( pl_Get(p_intf), "input-current", PlaylistEvent, p_intf );
 
-    var_DelCallback( p_intf->obj.libvlc, "key-action", ActionEvent, p_intf );
+    var_DelCallback( vlc_object_instance(p_intf), "key-action", ActionEvent, p_intf );
 
     ChangeInput( p_intf, NULL );
 
@@ -390,7 +389,7 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
     {
         /* Libvlc / interface actions */
         case ACTIONID_QUIT:
-            libvlc_Quit( p_intf->obj.libvlc );
+            libvlc_Quit( vlc_object_instance(p_intf) );
 
             ClearChannels( p_vout, slider_chan );
             DisplayMessage( p_vout, _( "Quit" ) );
@@ -679,7 +678,7 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
              * (This problem is also present in the "Track synchronization" window) */
             if ( p_input )
             {
-                if ( (p_sys->subtitle_delaybookmarks.i_time_audio == 0) || (p_sys->subtitle_delaybookmarks.i_time_subtitle == 0) )
+                if ( (p_sys->subtitle_delaybookmarks.i_time_audio == VLC_TICK_INVALID) || (p_sys->subtitle_delaybookmarks.i_time_subtitle == VLC_TICK_INVALID) )
                 {
                     DisplayMessage( p_vout, _( "Sub sync: set bookmarks first!" ) );
                 }
@@ -693,8 +692,8 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
                     DisplayMessage( p_vout, _( "Sub sync: corrected %"PRId64" ms (total delay = %"PRId64" ms)" ),
                                             MS_FROM_VLC_TICK( i_additional_subdelay ),
                                             MS_FROM_VLC_TICK( i_total_subdelay ) );
-                    p_sys->subtitle_delaybookmarks.i_time_audio = 0;
-                    p_sys->subtitle_delaybookmarks.i_time_subtitle = 0;
+                    p_sys->subtitle_delaybookmarks.i_time_audio = VLC_TICK_INVALID;
+                    p_sys->subtitle_delaybookmarks.i_time_subtitle = VLC_TICK_INVALID;
                 }
             }
             break;
@@ -704,8 +703,8 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
             var_SetInteger( p_input, "spu-delay", 0);
             ClearChannels( p_vout, slider_chan );
             DisplayMessage( p_vout, _( "Sub sync: delay reset" ) );
-            p_sys->subtitle_delaybookmarks.i_time_audio = 0;
-            p_sys->subtitle_delaybookmarks.i_time_subtitle = 0;
+            p_sys->subtitle_delaybookmarks.i_time_audio = VLC_TICK_INVALID;
+            p_sys->subtitle_delaybookmarks.i_time_subtitle = VLC_TICK_INVALID;
             break;
         }
 
@@ -978,7 +977,7 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
                     break;
             }
 
-            vlc_tick_t it = var_InheritInteger( p_input, varname );
+            int it = var_InheritInteger( p_input, varname );
             if( it < 0 )
                 break;
             var_SetInteger( p_input, "time-offset", vlc_tick_from_sec( it * sign ) );
@@ -1396,7 +1395,9 @@ static int PutAction( intf_thread_t *p_intf, input_thread_t *p_input,
                 else
                 {
                     i_scale = var_GetInteger( p_playlist, "sub-text-scale" );
-                    i_scale += ((i_action == ACTIONID_SUBTITLE_TEXT_SCALE_UP) ? 1 : -1) * 25;
+                    unsigned increment = ((i_scale > 100 ? i_scale - 100 : 100 - i_scale) / 25) <= 1 ? 10 : 25;
+                    i_scale += ((i_action == ACTIONID_SUBTITLE_TEXT_SCALE_UP) ? 1 : -1) * increment;
+                    i_scale -= i_scale % increment;
                     i_scale = VLC_CLIP( i_scale, 25, 500 );
                 }
                 var_SetInteger( p_playlist, "sub-text-scale", i_scale );
@@ -1525,8 +1526,8 @@ static void DisplayPosition( vout_thread_t *p_vout, int slider_chan,
 
     ClearChannels( p_vout, slider_chan );
 
-    int64_t t = var_GetInteger( p_input, "time" ) / CLOCK_FREQ;
-    int64_t l = var_GetInteger( p_input, "length" ) / CLOCK_FREQ;
+    int64_t t = SEC_FROM_VLC_TICK(var_GetInteger( p_input, "time" ));
+    int64_t l = SEC_FROM_VLC_TICK(var_GetInteger( p_input, "length" ));
 
     secstotimestr( psz_time, t );
 
@@ -1568,8 +1569,8 @@ static void DisplayRate( vout_thread_t *p_vout, float f_rate )
 
 static float AdjustRateFine( vlc_object_t *p_obj, const int i_dir )
 {
-    const float f_rate_min = (float)INPUT_RATE_DEFAULT / INPUT_RATE_MAX;
-    const float f_rate_max = (float)INPUT_RATE_DEFAULT / INPUT_RATE_MIN;
+    const float f_rate_min = INPUT_RATE_MIN;
+    const float f_rate_max = INPUT_RATE_MAX;
     float f_rate = var_GetFloat( p_obj, "rate" );
 
     int i_sign = f_rate < 0 ? -1 : 1;

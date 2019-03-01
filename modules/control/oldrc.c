@@ -2,7 +2,6 @@
  * oldrc.c : remote control stdin/stdout module for vlc
  *****************************************************************************
  * Copyright (C) 2004-2009 the VideoLAN team
- * $Id$
  *
  * Author: Peter Surda <shurdeek@panorama.sth.ac.at>
  *         Jean-Paul Saman <jpsaman #_at_# m2x _replaceWith#dot_ nl>
@@ -42,13 +41,13 @@
 #include <vlc_input.h>
 #include <vlc_aout.h>
 #include <vlc_vout.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 #include <vlc_actions.h>
 
 #include <sys/types.h>
 #include <unistd.h>
 
-
+#include <vlc_fs.h>
 #include <vlc_network.h>
 #include <vlc_url.h>
 #include <vlc_charset.h>
@@ -141,16 +140,27 @@ VLC_FORMAT(2, 3)
 static void msg_rc( intf_thread_t *p_intf, const char *psz_fmt, ... )
 {
     va_list args;
-    char fmt_eol[strlen (psz_fmt) + 3];
+    char fmt_eol[strlen (psz_fmt) + 3], *msg;
+    int len;
 
     snprintf (fmt_eol, sizeof (fmt_eol), "%s\r\n", psz_fmt);
     va_start( args, psz_fmt );
+    len = vasprintf( &msg, fmt_eol, args );
+    va_end( args );
+
+    if( len < 0 )
+        return;
 
     if( p_intf->p_sys->i_socket == -1 )
-        utf8_vfprintf( stdout, fmt_eol, args );
+#ifdef _WIN32
+        utf8_fprintf( stdout, "%s", msg );
+#else
+        vlc_write( 1, msg, len );
+#endif
     else
-        net_vaPrintf( p_intf, p_intf->p_sys->i_socket, fmt_eol, args );
-    va_end( args );
+        net_Write( p_intf, p_intf->p_sys->i_socket, msg, len );
+
+    free( msg );
 }
 #define msg_rc( ... ) msg_rc( p_intf, __VA_ARGS__ )
 
@@ -364,13 +374,20 @@ static int Activate( vlc_object_t *p_this )
 #endif
 
     if( vlc_clone( &p_sys->thread, Run, p_intf, VLC_THREAD_PRIORITY_LOW ) )
-        abort();
+        goto error;
 
     msg_rc( "%s", _("Remote control interface initialized. Type `help' for help.") );
 
     /* Listen to audio volume updates */
     var_AddCallback( p_sys->p_playlist, "volume", VolumeChanged, p_intf );
     return VLC_SUCCESS;
+
+error:
+    net_ListenClose( pi_socket );
+    free( psz_unix_path );
+    vlc_mutex_destroy( &p_sys->status_lock );
+    free( p_sys );
+    return VLC_EGENERIC;
 }
 
 /*****************************************************************************
@@ -482,6 +499,7 @@ static void *Run( void *data )
 {
     intf_thread_t *p_intf = data;
     intf_sys_t *p_sys = p_intf->p_sys;
+    vlc_object_t *vlc = VLC_OBJECT(vlc_object_instance(p_intf));
 
     char p_buffer[ MAX_LINE_LENGTH + 1 ];
     bool b_showpos = var_InheritBool( p_intf, "rc-show-pos" );
@@ -630,16 +648,16 @@ static void *Run( void *data )
                     psz_cmd, i_ret, vlc_error( i_ret ) );
         }
         /* Or maybe it's a global command */
-        else if( var_Type( p_intf->obj.libvlc, psz_cmd ) & VLC_VAR_ISCOMMAND )
+        else if( var_Type( vlc, psz_cmd ) & VLC_VAR_ISCOMMAND )
         {
             int i_ret = VLC_SUCCESS;
 
             /* FIXME: it's a global command, but we should pass the
-             * local object as an argument, not p_intf->obj.libvlc. */
-            if ((var_Type( p_intf->obj.libvlc, psz_cmd) & VLC_VAR_CLASS) == VLC_VAR_VOID)
+             * local object as an argument, not vlc_object_instance(p_intf). */
+            if ((var_Type( vlc, psz_cmd) & VLC_VAR_CLASS) == VLC_VAR_VOID)
                 var_TriggerCallback( p_intf, psz_cmd );
             else
-                i_ret = var_SetString( p_intf->obj.libvlc, psz_cmd, psz_arg );
+                i_ret = var_SetString( vlc, psz_cmd, psz_arg );
             if( i_ret != 0 )
             {
                 msg_rc( "%s: returned %i (%s)",
@@ -697,14 +715,14 @@ static void *Run( void *data )
         {
             int64_t t = 0;
             if( p_sys->p_input != NULL )
-                t = var_GetInteger( p_sys->p_input, "time" ) / CLOCK_FREQ;
+                t = SEC_FROM_VLC_TICK(var_GetInteger( p_sys->p_input, "time" ));
             msg_rc( "%"PRIu64, t );
         }
         else if( !strcmp( psz_cmd, "get_length" ) )
         {
             int64_t l = 0;
             if( p_sys->p_input != NULL )
-                l = var_GetInteger( p_sys->p_input, "length" ) / CLOCK_FREQ;
+                l = SEC_FROM_VLC_TICK(var_GetInteger( p_sys->p_input, "length" ));
             msg_rc( "%"PRIu64, l );
         }
         else if( !strcmp( psz_cmd, "get_title" ) )
@@ -725,8 +743,7 @@ static void *Run( void *data )
         }
         else if( !strcmp( psz_cmd, "key" ) || !strcmp( psz_cmd, "hotkey" ) )
         {
-            var_SetInteger( p_intf->obj.libvlc, "key-action",
-                            vlc_actions_get_id( psz_arg ) );
+            var_SetInteger( vlc, "key-action", vlc_actions_get_id( psz_arg ) );
         }
         else switch( psz_cmd[0] )
         {
@@ -905,7 +922,7 @@ static void PositionChanged( intf_thread_t *p_intf,
     vlc_mutex_lock( &p_intf->p_sys->status_lock );
     if( p_intf->p_sys->b_input_buffering )
         msg_rc( STATUS_CHANGE "( time: %"PRId64"s )",
-                (var_GetInteger( p_input, "time" ) / CLOCK_FREQ) );
+                SEC_FROM_VLC_TICK(var_GetInteger( p_input, "time" )) );
     p_intf->p_sys->b_input_buffering = false;
     vlc_mutex_unlock( &p_intf->p_sys->status_lock );
 }
@@ -998,7 +1015,7 @@ static int Input( vlc_object_t *p_this, char const *psz_cmd,
         }
         else
         {
-            var_SetInteger( p_intf->obj.libvlc, "key-action", ACTIONID_JUMP_FORWARD_EXTRASHORT );
+            var_SetInteger( vlc_object_instance(p_this), "key-action", ACTIONID_JUMP_FORWARD_EXTRASHORT );
         }
         i_error = VLC_SUCCESS;
     }
@@ -1012,7 +1029,7 @@ static int Input( vlc_object_t *p_this, char const *psz_cmd,
         }
         else
         {
-            var_SetInteger( p_intf->obj.libvlc, "key-action", ACTIONID_JUMP_BACKWARD_EXTRASHORT );
+            var_SetInteger( vlc_object_instance(p_this), "key-action", ACTIONID_JUMP_BACKWARD_EXTRASHORT );
         }
         i_error = VLC_SUCCESS;
     }
@@ -1158,7 +1175,7 @@ static void print_playlist( intf_thread_t *p_intf, playlist_item_t *p_item, int 
     {
         if( p_item->pp_children[i]->p_input->i_duration != INPUT_DURATION_INDEFINITE )
         {
-            secstotimestr( psz_buffer, p_item->pp_children[i]->p_input->i_duration / CLOCK_FREQ );
+            secstotimestr( psz_buffer, SEC_FROM_VLC_TICK(p_item->pp_children[i]->p_input->i_duration) );
             msg_rc( "|%*s- %s (%s)", 2 * i_level, "", p_item->pp_children[i]->p_input->psz_name, psz_buffer );
         }
         else
@@ -1403,7 +1420,7 @@ static int Quit( vlc_object_t *p_this, char const *psz_cmd,
     VLC_UNUSED(p_data); VLC_UNUSED(psz_cmd);
     VLC_UNUSED(oldval); VLC_UNUSED(newval);
 
-    libvlc_Quit( p_this->obj.libvlc );
+    libvlc_Quit( vlc_object_instance(p_this) );
     return VLC_SUCCESS;
 }
 
@@ -1746,7 +1763,7 @@ static bool ReadWin32( intf_thread_t *p_intf, unsigned char *p_buffer, int *pi_s
 
     /* On Win32, select() only works on socket descriptors */
     while( WaitForSingleObjectEx( p_intf->p_sys->hConsoleIn,
-                                INTF_IDLE_SLEEP/1000, TRUE ) == WAIT_OBJECT_0 )
+                                MS_FROM_VLC_TICK(INTF_IDLE_SLEEP), TRUE ) == WAIT_OBJECT_0 )
     {
         // Prefer to fail early when there's not enough space to store a 4 bytes
         // UTF8 character. The function will be immediatly called again and we won't
@@ -1842,7 +1859,7 @@ bool ReadCommand( intf_thread_t *p_intf, char *p_buffer, int *pi_size )
         {
             if( read( 0/*STDIN_FILENO*/, p_buffer + *pi_size, 1 ) <= 0 )
             {   /* Standard input closed: exit */
-                libvlc_Quit( p_intf->obj.libvlc );
+                libvlc_Quit( vlc_object_instance(p_intf) );
                 p_buffer[*pi_size] = 0;
                 return true;
             }

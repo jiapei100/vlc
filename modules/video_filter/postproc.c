@@ -2,7 +2,6 @@
  * postproc.c: video postprocessing using libpostproc
  *****************************************************************************
  * Copyright (C) 1999-2009 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Gildas Bazin <gbazin@netcourrier.com>
@@ -126,7 +125,7 @@ static int OpenPostproc( vlc_object_t *p_this )
 {
     filter_t *p_filter = (filter_t *)p_this;
     filter_sys_t *p_sys;
-    vlc_value_t val, val_orig, text;
+    vlc_value_t val, val_orig;
     const char *desc;
     int i_flags = 0;
 

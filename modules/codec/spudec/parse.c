@@ -2,7 +2,6 @@
  * parse.c: SPU parser
  *****************************************************************************
  * Copyright (C) 2000-2001, 2005, 2006 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Sam Hocevar <sam@zoy.org>
  *          Laurent Aimar <fenrir@via.ecp.fr>
@@ -191,7 +190,7 @@ static int ParseControlSeq( decoder_t *p_dec, subpicture_t *p_spu,
     spu_data_cmd.pi_alpha[3] = 0x0f;
 
     /* Initialize the structure */
-    p_spu->i_start = p_spu->i_stop = 0;
+    p_spu->i_start = p_spu->i_stop = VLC_TICK_INVALID;
     p_spu->b_ephemer = false;
 
     memset( p_spu_properties, 0, sizeof(*p_spu_properties) );
@@ -416,7 +415,7 @@ static int ParseControlSeq( decoder_t *p_dec, subpicture_t *p_spu,
         return VLC_EGENERIC;
     }
 
-    if( !p_spu->i_start )
+    if( p_spu->i_start == VLC_TICK_INVALID )
     {
         msg_Err( p_dec, "no `start display' command" );
         return VLC_EGENERIC;

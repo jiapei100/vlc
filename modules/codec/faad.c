@@ -2,7 +2,6 @@
  * faad.c: AAC decoder using libfaad2
  *****************************************************************************
  * Copyright (C) 2001, 2003 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Gildas Bazin <gbazin@videolan.org>
@@ -110,7 +109,10 @@ static int Open( vlc_object_t *p_this )
     decoder_sys_t *p_sys;
     NeAACDecConfiguration *cfg;
 
-    if( p_dec->fmt_in.i_codec != VLC_CODEC_MP4A )
+    if( p_dec->fmt_in.i_codec != VLC_CODEC_MP4A ||
+        p_dec->fmt_in.i_profile == AAC_PROFILE_ELD ||
+        (p_dec->fmt_in.i_extra > 1 &&
+         (GetWBE(p_dec->fmt_in.p_extra) & 0xffe0) == 0xf8e0)) /* ELD AOT */
     {
         return VLC_EGENERIC;
     }

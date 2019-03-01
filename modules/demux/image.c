@@ -2,7 +2,6 @@
  * image.c: Image demuxer
  *****************************************************************************
  * Copyright (C) 2010 Laurent Aimar
- * $Id$
  *
  * Authors: Laurent Aimar <fenrir _AT_ videolan _DOT_ org>
  *
@@ -104,7 +103,7 @@ typedef struct
     es_out_id_t *es;
     vlc_tick_t  duration;
     bool        is_realtime;
-    int64_t     pts_offset;
+    vlc_tick_t  pts_offset;
     vlc_tick_t  pts_next;
     date_t        pts;
 } demux_sys_t;
@@ -138,7 +137,7 @@ static block_t *Load(demux_t *demux)
 }
 
 static block_t *Decode(demux_t *demux,
-                       video_format_t *fmt, vlc_fourcc_t chroma, block_t *data)
+                       es_format_t *fmt, vlc_fourcc_t chroma, block_t *data)
 {
     image_handler_t *handler = image_HandlerCreate(demux);
     if (!handler) {
@@ -155,8 +154,9 @@ static block_t *Decode(demux_t *demux,
     if (!image)
         return NULL;
 
-    video_format_Clean(fmt);
-    *fmt = decoded;
+    es_format_Clean(fmt);
+    es_format_InitFromVideo(fmt, &decoded);
+    video_format_Clean(&decoded);
 
     size_t size = 0;
     for (int i = 0; i < image->i_planes; i++)
@@ -255,14 +255,13 @@ static int Control(demux_t *demux, int query, va_list args)
         return VLC_SUCCESS;
     }
     case DEMUX_GET_TIME: {
-        int64_t *time = va_arg(args, int64_t *);
-        *time = sys->pts_offset + date_Get(&sys->pts);
+        *va_arg(args, vlc_tick_t *) = sys->pts_offset + date_Get(&sys->pts);
         return VLC_SUCCESS;
     }
     case DEMUX_SET_TIME: {
         if (sys->duration < 0 || sys->is_realtime)
             return VLC_EGENERIC;
-        int64_t time = va_arg(args, int64_t);
+        vlc_tick_t time = va_arg(args, vlc_tick_t);
         date_Set(&sys->pts, VLC_CLIP(time - sys->pts_offset, VLC_TICK_0, sys->duration));
         return VLC_SUCCESS;
     }
@@ -274,8 +273,7 @@ static int Control(demux_t *demux, int query, va_list args)
         return VLC_SUCCESS;
     }
     case DEMUX_GET_LENGTH: {
-        int64_t *length = va_arg(args, int64_t *);
-        *length = __MAX(sys->duration, 0);
+        *va_arg(args, vlc_tick_t *) = __MAX(sys->duration, 0);
         return VLC_SUCCESS;
     }
     case DEMUX_GET_FPS: {
@@ -700,8 +698,7 @@ static int Open(vlc_object_t *object)
         vlc_fourcc_t chroma = vlc_fourcc_GetCodecFromString(VIDEO_ES, string);
         free(string);
 
-        data = Decode(demux, &fmt.video, chroma, data);
-        fmt.i_codec = fmt.video.i_chroma;
+        data = Decode(demux, &fmt, chroma, data);
     }
     fmt.i_id    = var_InheritInteger(demux, "image-id");
     fmt.i_group = var_InheritInteger(demux, "image-group");

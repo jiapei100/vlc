@@ -2,7 +2,6 @@
  * win32_factory.cpp
  *****************************************************************************
  * Copyright (C) 2003 the VideoLAN team
- * $Id$
  *
  * Authors: Cyril Deguet     <asmax@via.ecp.fr>
  *          Olivier Teulière <ipkiss@via.ecp.fr>
@@ -74,7 +73,7 @@ LRESULT CALLBACK Win32Factory::Win32Proc( HWND hwnd, UINT uMsg,
             // If closing parent window
             if( (wParam & 0xFFF0) == SC_CLOSE )
             {
-                libvlc_Quit( p_intf->obj.libvlc );
+                libvlc_Quit( vlc_object_instance(p_intf) );
                 return 0;
             }
             else if( (wParam & 0xFFF0) == SC_MINIMIZE )

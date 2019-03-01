@@ -3,7 +3,6 @@
  *****************************************************************************
  * Copyright (C) 1999, 2000, 2001, 2002 VLC authors and VideoLAN
  * Copyright © 2006-2007 Rémi Denis-Courmont
- * $Id$
  *
  * Authors: Vincent Seguin <seguin@via.ecp.fr>
  *
@@ -58,20 +57,28 @@ void vlc_threads_setup (libvlc_int_t *);
 void vlc_trace (const char *fn, const char *file, unsigned line);
 #define vlc_backtrace() vlc_trace(__func__, __FILE__, __LINE__)
 
-#if (defined (LIBVLC_USE_PTHREAD) || defined(__ANDROID__)) && !defined (NDEBUG)
-void vlc_assert_locked (vlc_mutex_t *);
+#ifndef NDEBUG
+/**
+ * Marks a mutex locked.
+ */
+void vlc_mutex_mark(const vlc_mutex_t *);
+
+/**
+ * Unmarks a mutex.
+ */
+void vlc_mutex_unmark(const vlc_mutex_t *);
 #else
-# define vlc_assert_locked( m ) (void)m
+# define vlc_mutex_mark(m) ((void)(m))
+# define vlc_mutex_unmark(m) ((void)(m))
 #endif
 
 /*
  * Logging
  */
-typedef struct vlc_logger_t vlc_logger_t;
+typedef struct vlc_logger vlc_logger_t;
 
-int vlc_LogPreinit(libvlc_int_t *);
-int vlc_LogInit(libvlc_int_t *);
-void vlc_LogDeinit(libvlc_int_t *);
+int vlc_LogPreinit(libvlc_int_t *) VLC_USED;
+void vlc_LogInit(libvlc_int_t *);
 
 /*
  * LibVLC exit event handling
@@ -174,20 +181,24 @@ void vlc_objres_remove(vlc_object_t *obj, void *data,
 typedef struct vlc_dialog_provider vlc_dialog_provider;
 typedef struct vlc_keystore vlc_keystore;
 typedef struct vlc_actions_t vlc_actions_t;
+typedef struct vlc_playlist vlc_playlist_t;
+typedef struct vlc_media_source_provider_t vlc_media_source_provider_t;
 
 typedef struct libvlc_priv_t
 {
     libvlc_int_t       public_data;
 
     /* Singleton objects */
-    vlc_logger_t      *logger;
     vlm_t             *p_vlm;  ///< the VLM singleton (or NULL)
     vlc_dialog_provider *p_dialog_provider; ///< dialog provider
     vlc_keystore      *p_memory_keystore; ///< memory keystore
     struct playlist_t *playlist; ///< Playlist for interfaces
+    vlc_playlist_t *main_playlist;
     struct input_preparser_t *parser; ///< Input item meta data handler
+    vlc_media_source_provider_t *media_source_provider;
     vlc_actions_t *actions; ///< Hotkeys handler
     struct vlc_medialibrary_t *p_media_library; ///< Media library instance
+    struct vlc_thumbnailer_t *p_thumbnailer; ///< Lazily instantiated media thumbnailer
 
     /* Exit callback */
     vlc_exit_t       exit;

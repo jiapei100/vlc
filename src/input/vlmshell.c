@@ -2,7 +2,6 @@
  * vlmshell.c: VLM interface plugin
  *****************************************************************************
  * Copyright (C) 2000-2005 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Simon Latapie <garf@videolan.org>
  *          Laurent Aimar <fenrir@videolan.org>
@@ -405,7 +404,7 @@ static int ExecuteControl( vlm_t *p_vlm, const char *psz_name, const int i_arg, 
         }
 
         if( p_media->cfg.b_vod )
-            i_result = vlm_ControlInternal( p_vlm, VLM_START_MEDIA_VOD_INSTANCE, p_media->cfg.id, psz_instance, i_input_index, NULL );    // we should get here now
+            i_result = vlm_ControlInternal( p_vlm, VLM_START_MEDIA_VOD_INSTANCE, p_media->cfg.id, psz_instance, i_input_index, (const char *)NULL );    // we should get here now
         else
             i_result = vlm_ControlInternal( p_vlm, VLM_START_MEDIA_BROADCAST_INSTANCE, p_media->cfg.id, psz_instance, i_input_index );
     }
@@ -425,9 +424,9 @@ static int ExecuteControl( vlm_t *p_vlm, const char *psz_name, const int i_arg, 
                 int64_t i_new_time;
 
                 if( strstr( psz_argument, "ms" ) )
-                    i_new_time =  1000 * (int64_t)atoi( psz_argument );
+                    i_new_time = INT64_C(1000) * atoi( psz_argument );
                 else
-                    i_new_time = vlc_tick_from_sec(atoi( psz_argument ));
+                    i_new_time = INT64_C(1000000) * atoi( psz_argument );
 
                 if( b_relative )
                 {

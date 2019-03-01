@@ -2,7 +2,6 @@
  * ncurses.c : NCurses interface for vlc
  *****************************************************************************
  * Copyright © 2001-2011 the VideoLAN team
- * $Id$
  *
  * Authors: Sam Hocevar <sam@zoy.org>
  *          Laurent Aimar <fenrir@via.ecp.fr>
@@ -53,7 +52,7 @@
 #include <vlc_charset.h>
 #include <vlc_input.h>
 #include <vlc_es.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 #include <vlc_meta.h>
 #include <vlc_fs.h>
 #include <vlc_url.h>
@@ -715,7 +714,7 @@ static int SubDrawObject(intf_sys_t *sys, int l, vlc_object_t *p_obj, int i_leve
 {
     char *name = vlc_object_get_name(p_obj);
     MainBoxWrite(sys, l++, "%*s%s%s \"%s\" (%p)", 2 * i_level++, "", prefix,
-                  p_obj->obj.object_type, name ? name : "", (void *)p_obj);
+                 vlc_object_typename(p_obj), name ? name : "", (void *)p_obj);
     free(name);
 
     size_t count = 0, size;
@@ -739,7 +738,7 @@ static int SubDrawObject(intf_sys_t *sys, int l, vlc_object_t *p_obj, int i_leve
 static int DrawObjects(intf_thread_t *intf, input_thread_t *input)
 {
     (void) input;
-    return SubDrawObject(intf->p_sys, 0, VLC_OBJECT(intf->obj.libvlc), 0, "");
+    return SubDrawObject(intf->p_sys, 0, VLC_OBJECT(vlc_object_instance(intf)), 0, "");
 }
 
 static int DrawMeta(intf_thread_t *intf, input_thread_t *p_input)
@@ -1092,6 +1091,7 @@ static int DrawStatus(intf_thread_t *intf, input_thread_t *p_input)
         case PAUSE_S:
             mvnprintw(y++, 0, COLS, _(input_state[val.i_int]),
                         repeat, random, loop);
+            /* fall-through */
 
         default:
             secstotimestr(buf1, SEC_FROM_VLC_TICK(var_GetInteger(p_input, "time")));
@@ -1575,7 +1575,7 @@ static void HandleCommonKey(intf_thread_t *intf, input_thread_t *input,
     case 'q':
     case 'Q':
     case KEY_EXIT:
-        libvlc_Quit(intf->obj.libvlc);
+        libvlc_Quit(vlc_object_instance(intf));
         return;
 
     case 'h':
@@ -1763,6 +1763,8 @@ static void MsgCallback(void *data, int type, const vlc_log_t *msg,
     vlc_mutex_unlock(&sys->msg_lock);
 }
 
+static const struct vlc_logger_operations log_ops = { MsgCallback, NULL };
+
 /*****************************************************************************
  * Run: ncurses thread
  *****************************************************************************/
@@ -1801,7 +1803,7 @@ static int Open(vlc_object_t *p_this)
     vlc_mutex_init(&sys->msg_lock);
 
     sys->verbosity = var_InheritInteger(intf, "verbose");
-    vlc_LogSet(intf->obj.libvlc, MsgCallback, sys);
+    vlc_LogSet(vlc_object_instance(intf), &log_ops, sys);
 
     sys->box_type = BOX_PLAYLIST;
     sys->plidx_follow = true;
@@ -1868,7 +1870,7 @@ static void Close(vlc_object_t *p_this)
 
     endwin();   /* Close the ncurses interface */
 
-    vlc_LogSet(p_this->obj.libvlc, NULL, NULL);
+    vlc_LogSet(vlc_object_instance(p_this), NULL, NULL);
     vlc_mutex_destroy(&sys->msg_lock);
     for(unsigned i = 0; i < sizeof sys->msgs / sizeof *sys->msgs; i++) {
         if (sys->msgs[i].item)

@@ -2,7 +2,6 @@
  * gstdecode.c: Decoder module making use of gstreamer
  *****************************************************************************
  * Copyright (C) 2014-2016 VLC authors and VideoLAN
- * $Id:
  *
  * Author: Vikram Fugro <vikram.fugro@gmail.com>
  *
@@ -329,25 +328,23 @@ static gboolean vlc_gst_plugin_init( GstPlugin *p_plugin )
     return TRUE;
 }
 
+static bool vlc_gst_registered = false;
+
+static void vlc_gst_init_once(void)
+{
+    gst_init( NULL, NULL );
+    vlc_gst_registered = gst_plugin_register_static( 1, 0, "videolan",
+                "VLC Gstreamer plugins", vlc_gst_plugin_init,
+                "1.0.0", "LGPL", "NA", "vlc", "NA" );
+}
+
 /* gst_init( ) is not thread-safe, hence a thread-safe wrapper */
 static bool vlc_gst_init( void )
 {
-    static vlc_mutex_t init_lock = VLC_STATIC_MUTEX;
-    static bool b_registered = false;
-    bool b_ret = true;
+    static vlc_once_t once = VLC_STATIC_ONCE;
 
-    vlc_mutex_lock( &init_lock );
-    gst_init( NULL, NULL );
-    if ( !b_registered )
-    {
-        b_ret = gst_plugin_register_static( 1, 0, "videolan",
-                "VLC Gstreamer plugins", vlc_gst_plugin_init,
-                "1.0.0", "LGPL", "NA", "vlc", "NA" );
-        b_registered = b_ret;
-    }
-    vlc_mutex_unlock( &init_lock );
-
-    return b_ret;
+    vlc_once(&once, vlc_gst_init_once);
+    return vlc_gst_registered;
 }
 
 static GstStructure* vlc_to_gst_fmt( const es_format_t *p_fmt )
@@ -664,7 +661,6 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
     picture_t *p_pic = NULL;
     decoder_sys_t *p_sys = p_dec->p_sys;
     GstMessage *p_msg;
-    GstBuffer *p_buf;
 
     if( !p_block ) /* No Drain */
         return VLCDEC_SUCCESS;
@@ -684,6 +680,8 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
 
     if( likely( p_block->i_buffer ) )
     {
+        GstBuffer *p_buf;
+
         p_buf = gst_buffer_new_wrapped_full( GST_MEMORY_FLAG_READONLY,
                 p_block->p_start, p_block->i_size,
                 p_block->p_buffer - p_block->p_start, p_block->i_buffer,

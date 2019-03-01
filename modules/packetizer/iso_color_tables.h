@@ -43,7 +43,7 @@ enum iso_23001_8_cp
     ISO_23001_8_CP_EBU_3213 = 22,
 };
 
-static const uint8_t iso_23001_8_cp_to_vlc_primaries_table[] =
+static const video_color_primaries_t iso_23001_8_cp_to_vlc_primaries_table[] =
 {
     [0]                             = COLOR_PRIMARIES_UNDEF,
     [ISO_23001_8_CP_BT_709]         = COLOR_PRIMARIES_BT709,
@@ -70,6 +70,17 @@ static inline video_color_primaries_t iso_23001_8_cp_to_vlc_primaries( uint8_t v
            : COLOR_PRIMARIES_UNDEF;
 }
 
+static inline enum iso_23001_8_cp vlc_primaries_to_iso_23001_8_cp( video_color_primaries_t v )
+{
+    for(size_t i=1; i<ARRAY_SIZE(iso_23001_8_cp_to_vlc_primaries_table); i++)
+        if(iso_23001_8_cp_to_vlc_primaries_table[i] == v)
+            return (enum iso_23001_8_cp) i;
+    if( v == COLOR_PRIMARIES_EBU_3213 )
+        return ISO_23001_8_CP_EBU_3213;
+    else
+        return ISO_23001_8_CP_UNSPECIFIED;
+}
+
 enum iso_23001_8_tc
 {
     ISO_23001_8_TC_RESERVED_0 = 0,
@@ -93,7 +104,7 @@ enum iso_23001_8_tc
     ISO_23001_8_TC_HLG /* BT.2100 HLG, ARIB STD-B67 */
 };
 
-static const uint8_t iso_23001_8_tc_to_vlc_xfer_table[] =
+static const video_transfer_func_t iso_23001_8_tc_to_vlc_xfer_table[] =
 {
     [ISO_23001_8_TC_RESERVED_0]     = TRANSFER_FUNC_UNDEF,
     [ISO_23001_8_TC_BT_709]         = TRANSFER_FUNC_BT709,
@@ -123,6 +134,14 @@ static inline video_transfer_func_t iso_23001_8_tc_to_vlc_xfer( uint8_t v )
            : TRANSFER_FUNC_UNDEF;
 }
 
+static inline enum iso_23001_8_tc vlc_xfer_to_iso_23001_8_tc( video_transfer_func_t v )
+{
+    for(size_t i=1; i<ARRAY_SIZE(iso_23001_8_tc_to_vlc_xfer_table); i++)
+        if(iso_23001_8_tc_to_vlc_xfer_table[i] == v)
+            return (enum iso_23001_8_tc) i;
+    return ISO_23001_8_TC_UNSPECIFIED;
+}
+
 enum iso_23001_8_mc
 {
     ISO_23001_8_MC_IDENTITY = 0,
@@ -142,7 +161,7 @@ enum iso_23001_8_mc
     ISO_23001_8_MC_ICTCP,
 };
 
-static const uint8_t iso_23001_8_mc_to_vlc_coeffs_table[] =
+static const video_color_space_t iso_23001_8_mc_to_vlc_coeffs_table[] =
 {
     [ISO_23001_8_MC_IDENTITY]    = COLOR_SPACE_UNDEF,
     [ISO_23001_8_MC_BT_709]      = COLOR_SPACE_BT709,
@@ -166,6 +185,14 @@ static inline video_color_space_t iso_23001_8_mc_to_vlc_coeffs( uint8_t v )
     return v < ARRAY_SIZE(iso_23001_8_mc_to_vlc_coeffs_table)
            ? iso_23001_8_mc_to_vlc_coeffs_table[v]
            : COLOR_SPACE_UNDEF;
+}
+
+static inline enum iso_23001_8_mc vlc_coeffs_to_iso_23001_8_mc( video_color_space_t v )
+{
+    for(size_t i=1; i<ARRAY_SIZE(iso_23001_8_mc_to_vlc_coeffs_table); i++)
+        if(iso_23001_8_mc_to_vlc_coeffs_table[i] == v)
+            return (enum iso_23001_8_mc) i;
+    return ISO_23001_8_MC_UNSPECIFIED;
 }
 
 #endif /* VLC_ISO_23001_8_COLOR_TABLES_H_ */

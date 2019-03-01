@@ -2,7 +2,6 @@
  * gototime.cpp : GotoTime and About dialogs
  ****************************************************************************
  * Copyright (C) 2007 the VideoLAN team
- * $Id$
  *
  * Authors: Jean-Baptiste Kempf <jb (at) videolan.org>
  *
@@ -88,7 +87,7 @@ void GotoTimeDialog::toggleVisible()
     reset();
     if ( !isVisible() && THEMIM->getIM()->hasInput() )
     {
-        int64_t i_time = var_GetInteger( THEMIM->getInput(), "time" );
+        vlc_tick_t i_time = var_GetInteger( THEMIM->getInput(), "time" );
         timeEdit->setTime( timeEdit->time().addSecs( SEC_FROM_VLC_TICK(i_time) ) );
     }
     QVLCDialog::toggleVisible();

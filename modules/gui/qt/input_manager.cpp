@@ -2,7 +2,6 @@
  * input_manager.cpp : Manage an input and interact with its GUI elements
  ****************************************************************************
  * Copyright (C) 2006-2008 the VideoLAN team
- * $Id$
  *
  * Authors: Clément Stenac <zorglub@videolan.org>
  *          Ilkka Ollakka  <ileoo@videolan.org>
@@ -74,8 +73,8 @@ InputManager::InputManager( MainInputManager *mim, intf_thread_t *_p_intf) :
     f_rate       = 0.;
     p_item       = NULL;
     b_video      = false;
-    timeA        = 0;
-    timeB        = 0;
+    timeA        = VLC_TICK_INVALID;
+    timeB        = VLC_TICK_INVALID;
     f_cache      = -1.; /* impossible initial value, different from all */
     registerAndCheckEventIds( IMEvent::PositionUpdate, IMEvent::FullscreenControlPlanHide );
     registerAndCheckEventIds( PLEvent::PLItemAppended, PLEvent::PLEmpty );
@@ -119,13 +118,13 @@ void InputManager::setInput( input_thread_t *_p_input )
         {
             char *uri = input_item_GetURI( p_item );
 
-            int i_time = RecentsMRL::getInstance( p_intf )->time( qfu(uri) );
+            vlc_tick_t i_time = RecentsMRL::getInstance( p_intf )->time( qfu(uri) );
             if( i_time > 0 && qfu( uri ) != lastURI &&
                     !var_GetFloat( p_input, "run-time" ) &&
                     !var_GetFloat( p_input, "start-time" ) &&
                     !var_GetFloat( p_input, "stop-time" ) )
             {
-                emit resumePlayback( (int64_t)i_time * 1000 );
+                emit resumePlayback( i_time );
             }
             playlist_Lock( THEPL );
             // Add root items only
@@ -162,7 +161,7 @@ void InputManager::delInput()
     char *uri = input_item_GetURI( p_item );
     if( uri != NULL ) {
         float f_pos = var_GetFloat( p_input , "position" );
-        int64_t i_time = -1;
+        vlc_tick_t i_time = -1;
 
         if( f_pos >= 0.05f && f_pos <= 0.95f
          && var_GetInteger( p_input, "length" ) >= VLC_TICK_FROM_SEC(60))
@@ -178,8 +177,8 @@ void InputManager::delInput()
     oldName              = "";
     artUrl               = "";
     b_video              = false;
-    timeA                = 0;
-    timeB                = 0;
+    timeA                = VLC_TICK_INVALID;
+    timeB                = VLC_TICK_INVALID;
     f_rate               = 0. ;
 
     if( p_input_vbi )
@@ -283,9 +282,6 @@ void InputManager::customEvent( QEvent *event )
     case IMEvent::BookmarksChanged:
         emit bookmarksChanged();
         break;
-    case IMEvent::InterfaceAoutUpdate:
-        UpdateAout();
-        break;
     case IMEvent::RecordingEvent:
         UpdateRecord();
         break;
@@ -363,9 +359,6 @@ static int InputEvent( vlc_object_t *, const char *,
     case INPUT_EVENT_VOUT:
         event = new IMEvent( IMEvent::InterfaceVoutUpdate );
         break;
-    case INPUT_EVENT_AOUT:
-        event = new IMEvent( IMEvent::InterfaceAoutUpdate );
-        break;
 
     case INPUT_EVENT_ITEM_META: /* Codec MetaData + Art */
         event = new IMEvent( IMEvent::MetaChanged );
@@ -429,7 +422,7 @@ void InputManager::UpdatePosition()
 {
     /* Update position */
     vlc_tick_t i_length = var_GetInteger(  p_input , "length" );
-    int64_t i_time = var_GetInteger(  p_input , "time");
+    vlc_tick_t i_time = var_GetInteger(  p_input , "time");
     float f_pos = var_GetFloat(  p_input , "position" );
     emit positionUpdated( f_pos, i_time, SEC_FROM_VLC_TICK(i_length) );
 }
@@ -656,11 +649,6 @@ void InputManager::UpdateVout()
     free( pp_vout );
 }
 
-void InputManager::UpdateAout()
-{
-    /* TODO */
-}
-
 void InputManager::UpdateCaching()
 {
     float f_newCache = var_GetFloat ( p_input, "cache" );
@@ -690,7 +678,7 @@ void InputManager::requestArtUpdate( input_item_t *p_item, bool b_forced )
             if ( status & ( ITEM_ART_NOTFOUND|ITEM_ART_FETCHED ) )
                 return;
         }
-        libvlc_ArtRequest( p_intf->obj.libvlc, p_item,
+        libvlc_ArtRequest( vlc_object_instance(p_intf), p_item,
                            (b_forced) ? META_REQUEST_OPTION_SCOPE_ANY
                                       : META_REQUEST_OPTION_NONE,
                            NULL, NULL );
@@ -908,12 +896,12 @@ void InputManager::faster()
 
 void InputManager::littlefaster()
 {
-    var_SetInteger( p_intf->obj.libvlc, "key-action", ACTIONID_RATE_FASTER_FINE );
+    var_SetInteger( vlc_object_instance(p_intf), "key-action", ACTIONID_RATE_FASTER_FINE );
 }
 
 void InputManager::littleslower()
 {
-    var_SetInteger( p_intf->obj.libvlc, "key-action", ACTIONID_RATE_SLOWER_FINE );
+    var_SetInteger( vlc_object_instance(p_intf), "key-action", ACTIONID_RATE_SLOWER_FINE );
 }
 
 void InputManager::normalRate()
@@ -921,10 +909,9 @@ void InputManager::normalRate()
     var_SetFloat( THEPL, "rate", 1. );
 }
 
-void InputManager::setRate( int new_rate )
+void InputManager::setRate( float new_rate )
 {
-    var_SetFloat( THEPL, "rate",
-                 (float)INPUT_RATE_DEFAULT / (float)new_rate );
+    var_SetFloat( THEPL, "rate", new_rate );
 }
 
 void InputManager::jumpFwd()
@@ -949,31 +936,31 @@ void InputManager::jumpBwd()
 
 void InputManager::setAtoB()
 {
-    if( !timeA )
+    if( timeA != VLC_TICK_INVALID )
     {
         timeA = var_GetInteger( p_mim->getInput(), "time"  );
     }
-    else if( !timeB )
+    else if( timeB != VLC_TICK_INVALID )
     {
         timeB = var_GetInteger( p_mim->getInput(), "time"  );
         var_SetInteger( p_mim->getInput(), "time" , timeA );
-        CONNECT( this, positionUpdated( float, int64_t, int ),
+        CONNECT( this, positionUpdated( float, vlc_tick_t, int ),
                  this, AtoBLoop( float, vlc_tick_t, int ) );
     }
     else
     {
-        timeA = 0;
-        timeB = 0;
-        disconnect( this, SIGNAL( positionUpdated( float, int64_t, int ) ),
+        timeA = VLC_TICK_INVALID;
+        timeB = VLC_TICK_INVALID;
+        disconnect( this, SIGNAL( positionUpdated( float, vlc_tick_t, int ) ),
                     this, SLOT( AtoBLoop( float, vlc_tick_t, int ) ) );
     }
-    emit AtoBchanged( (timeA != 0 ), (timeB != 0 ) );
+    emit AtoBchanged( (timeA != VLC_TICK_INVALID ), (timeB != VLC_TICK_INVALID ) );
 }
 
 /* Function called regularly when in an AtoB loop */
 void InputManager::AtoBLoop( float, vlc_tick_t i_time, int )
 {
-    if( timeB && i_time >= timeB )
+    if( timeB != VLC_TICK_INVALID && i_time >= timeB )
         var_SetInteger( p_mim->getInput(), "time" , timeA );
 }
 
@@ -1122,7 +1109,7 @@ void MainInputManager::prev()
 
 void MainInputManager::prevOrReset()
 {
-    if( !p_input || var_GetInteger( p_input, "time") < INT64_C(10000) )
+    if( !p_input || var_GetInteger( p_input, "time") < VLC_TICK_FROM_MS(10) )
         playlist_Prev( THEPL );
     else
         getIM()->sliderUpdate( 0.0 );

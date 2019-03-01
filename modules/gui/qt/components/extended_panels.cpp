@@ -2,7 +2,6 @@
  * extended_panels.cpp : Extended controls panels
  ****************************************************************************
  * Copyright (C) 2006-2013 the VideoLAN team
- * $Id$
  *
  * Authors: Clément Stenac <zorglub@videolan.org>
  *          Antoine Cellerier <dionoea .t videolan d@t org>
@@ -54,7 +53,6 @@
 #include "dialogs_provider.hpp"
 
 #include "../../audio_filter/equalizer_presets.h"
-#include <vlc_vout.h>
 #include <vlc_modules.h>
 #include <vlc_plugin.h>
 

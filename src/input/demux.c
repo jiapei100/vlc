@@ -2,7 +2,6 @@
  * demux.c
  *****************************************************************************
  * Copyright (C) 1999-2004 VLC authors and VideoLAN
- * $Id$
  *
  * Author: Laurent Aimar <fenrir@via.ecp.fr>
  *
@@ -275,7 +274,7 @@ int demux_vaControlHelper( stream_t *s,
 {
     int64_t i_tell;
     double  f, *pf;
-    int64_t i64, *pi64;
+    vlc_tick_t i64;
 
     if( i_end < 0 )    i_end   = stream_Size( s );
     if( i_start < 0 )  i_start = 0;
@@ -310,25 +309,23 @@ int demux_vaControlHelper( stream_t *s,
             return vlc_stream_vaControl( s, i_query, args );
 
         case DEMUX_GET_LENGTH:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
             if( i_bitrate > 0 && i_end > i_start )
             {
-                *pi64 = INT64_C(8000000) * (i_end - i_start) / i_bitrate;
+                *va_arg( args, vlc_tick_t * ) = INT64_C(8000000) * (i_end - i_start) / i_bitrate;
                 return VLC_SUCCESS;
             }
             return VLC_EGENERIC;
 
         case DEMUX_GET_TIME:
-            pi64 = (int64_t*)va_arg( args, int64_t * );
             if( i_bitrate > 0 && i_tell >= i_start )
             {
-                *pi64 = INT64_C(8000000) * (i_tell - i_start) / i_bitrate;
+                *va_arg( args, vlc_tick_t * ) = INT64_C(8000000) * (i_tell - i_start) / i_bitrate;
                 return VLC_SUCCESS;
             }
             return VLC_EGENERIC;
 
         case DEMUX_GET_POSITION:
-            pf = (double*)va_arg( args, double * );
+            pf = va_arg( args, double * );
             if( i_start < i_end )
             {
                 *pf = (double)( i_tell - i_start ) /
@@ -339,7 +336,7 @@ int demux_vaControlHelper( stream_t *s,
 
 
         case DEMUX_SET_POSITION:
-            f = (double)va_arg( args, double );
+            f = va_arg( args, double );
             if( i_start < i_end && f >= 0.0 && f <= 1.0 )
             {
                 int64_t i_block = (f * ( i_end - i_start )) / i_align;
@@ -353,7 +350,7 @@ int demux_vaControlHelper( stream_t *s,
             return VLC_EGENERIC;
 
         case DEMUX_SET_TIME:
-            i64 = (int64_t)va_arg( args, int64_t );
+            i64 = va_arg( args, vlc_tick_t );
             if( i_bitrate > 0 && i64 >= 0 )
             {
                 int64_t i_block = i64 * i_bitrate / INT64_C(8000000) / i_align;

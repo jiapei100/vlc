@@ -2,7 +2,6 @@
  * vlc_objects.h: vlc_object_t definition and manipulation methods
  *****************************************************************************
  * Copyright (C) 2002-2008 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Samuel Hocevar <sam@zoy.org>
  *
@@ -29,6 +28,8 @@
  * Common VLC object defintions
  */
 
+struct vlc_logger;
+
 /**
  * VLC object common members
  *
@@ -38,20 +39,9 @@
  */
 struct vlc_common_members
 {
-    /** Object type name
-     *
-     * A constant string identifying the type of the object (for logging)
-     */
-    const char *object_type;
+    struct vlc_logger *logger;
 
-    /** Log messages header
-     *
-     * Human-readable header for log messages. This is not thread-safe and
-     * only used by VLM and Lua interfaces.
-     */
-    char *header;
-
-    int  flags;
+    bool no_interact;
 
     /** Module probe flag
      *
@@ -59,19 +49,6 @@ struct vlc_common_members
      * See \ref module_need().
      */
     bool force;
-
-    /** LibVLC instance
-     *
-     * Root VLC object of the objects tree that this object belongs in.
-     */
-    libvlc_int_t *libvlc;
-
-    /** Parent object
-     *
-     * The parent VLC object in the objects tree. For the root (the LibVLC
-     * instance) object, this is NULL.
-     */
-    vlc_object_t *parent;
 };
 
 /**
@@ -90,10 +67,6 @@ struct vlc_common_members
 #else
 # define VLC_OBJECT(x) ((vlc_object_t *)(x))
 #endif
-
-/* Object flags */
-#define OBJECT_FLAGS_QUIET       0x0002
-#define OBJECT_FLAGS_NOINTERACT  0x0004
 
 /*****************************************************************************
  * The vlc_object_t type. Yes, it's that simple :-)
@@ -118,6 +91,27 @@ VLC_API vlc_object_t *vlc_object_find_name( vlc_object_t *, const char * ) VLC_U
 VLC_API void * vlc_object_hold( vlc_object_t * );
 VLC_API void vlc_object_release( vlc_object_t * );
 VLC_API size_t vlc_list_children(vlc_object_t *, vlc_object_t **, size_t) VLC_USED;
+
+/**
+ * Returns the object type name.
+ *
+ * This returns a nul-terminated string identifying the object type.
+ * The string is valid for at least as long as the object reference.
+ *
+ * \param obj object whose type name to get
+ */
+VLC_API const char *vlc_object_typename(const vlc_object_t *obj) VLC_USED;
+
+/**
+ * Gets the parent of an object.
+ *
+ * \return the parent object (NULL if none)
+ *
+ * \note The returned parent object pointer is valid as long as the child is.
+ */
+VLC_API vlc_object_t *vlc_object_parent(vlc_object_t *obj) VLC_USED;
+#define vlc_object_parent(o) vlc_object_parent(VLC_OBJECT(o))
+
 VLC_API char *vlc_object_get_name( const vlc_object_t * ) VLC_USED;
 
 #define vlc_object_create(a,b) vlc_object_create( VLC_OBJECT(a), b )
@@ -130,6 +124,19 @@ VLC_API char *vlc_object_get_name( const vlc_object_t * ) VLC_USED;
 
 #define vlc_object_release(a) \
     vlc_object_release( VLC_OBJECT(a) )
+
+VLC_USED
+static inline libvlc_int_t *vlc_object_instance(vlc_object_t *obj)
+{
+    vlc_object_t *parent;
+
+    do
+        parent = obj;
+    while ((obj = vlc_object_parent(obj)) != NULL);
+
+    return (libvlc_int_t *)parent;
+}
+#define vlc_object_instance(o) vlc_object_instance(VLC_OBJECT(o))
 
 /**
  * @defgroup objres Object resources
